@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 14, "column": 0}, "map": {"version":3,"sources":["file:///F:/projects/laravelB/nnn/hackathons-boilerplate/app/%28auth%29/register/page.tsx"],"sourcesContent":["import { SignUp } from \"@clerk/nextjs\"\r\n\r\nexport default function RegisterPage() {\r\n  return (\r\n    <div className=\"flex min-h-screen items-center justify-center bg-background\">\r\n      <SignUp\r\n        appearance={{\r\n          elements: {\r\n            rootBox: \"mx-auto\",\r\n            card: \"bg-card shadow-lg\",\r\n          },\r\n        }}\r\n        routing=\"path\"\r\n        path=\"/register\"\r\n        signInUrl=\"/login\"\r\n        redirectUrl=\"/dashboard\"\r\n      />\r\n    </div>\r\n  )\r\n}\r\n"],"names":[],"mappings":";;;;;AAAA;;;AAEe,SAAS;IACtB,qBACE,8OAAC;QAAI,WAAU;kBACb,cAAA,8OAAC,gMAAM;YACL,YAAY;gBACV,UAAU;oBACR,SAAS;oBACT,MAAM;gBACR;YACF;YACA,SAAQ;YACR,MAAK;YACL,WAAU;YACV,aAAY;;;;;;;;;;;AAIpB"}}]
+}

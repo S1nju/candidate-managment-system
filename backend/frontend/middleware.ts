@@ -1,0 +1,17 @@
+import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
+
+// This is a simple middleware that allows everything.
+// We are handling auth checks on the client side with useAuth hook
+// or could implement a custom server-side check if needed.
+
+export function middleware(request: NextRequest) {
+  return NextResponse.next()
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
+}

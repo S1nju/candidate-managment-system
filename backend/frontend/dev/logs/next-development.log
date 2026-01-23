@@ -1,0 +1,576 @@
+[00:00:01.337] Server  LOG     
+[00:00:01.337] Server  LOG        We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+[00:00:01.337] Server  LOG        The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+[00:00:01.338] Server  LOG        	- include was updated to add '.next/dev/types/**/*.ts'
+[00:00:01.338] Server  LOG     
+[00:00:01.338] Server  LOG        The following mandatory changes were made to your tsconfig.json:
+
+[00:00:01.338] Server  LOG        	- jsx was set to react-jsx (next.js uses the React automatic runtime)
+[00:00:01.338] Server  LOG     
+[00:00:01.369] Server  WARN     ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[00:00:01.549] Server  LOG      ✓ Ready in 1177ms
+[00:00:05.061] Server  LOG        Reload env: .env
+[00:05:38.289] Server  LOG     
+
+[Clerk]: You are running in keyless mode.
+You can claim your keys by visiting https://dashboard.clerk.com/apps/claim?token=061finrbaittdhb53lpc2s3yq7i204npgwsyq5qi&return_url=http%3A%2F%2Flocalhost%3A3000%2F
+
+[00:05:38.561] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:05:38.708] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_3bb2a159-f799-4758-8075-b7e682ac9c24__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:05:38.895] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:05:39.069] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:05:39.069] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[00:05:39.069] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799496897}
+[00:05:40.471] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/dashboard. Falling back to browser navigation. {}
+[00:05:57.267] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:05:57.530] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:05:57.530] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_489d9a1a-8a7c-4464-8064-2290ce9bf538__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:05:57.530] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:05:57.530] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:05:57.530] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799515358}
+[00:06:00.453] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799518282}
+[00:06:08.586] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799526419}
+[00:06:09.277] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799527114}
+[00:06:21.024] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799538863}
+[00:06:58.382] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799576222}
+[00:07:12.351] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799590189}
+[00:07:13.217] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799591055}
+[00:07:18.844] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799596686}
+[00:07:36.556] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799614396}
+[00:07:38.079] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799615919}
+[00:07:38.711] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799616554}
+[00:07:40.027] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799617865}
+[00:08:21.063] Server  LOG        Reload env: .env.local
+[00:08:50.083] Server  LOG        Reload env: .env.local
+[00:08:50.438] Server  LOG      ✓ Compiled in 313ms
+[00:08:50.440] Server  WARN     ⚠ Fast Refresh had to perform a full reload when ./node_modules/@clerk/nextjs/dist/esm/server/constants.js changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[00:08:51.060] Server  LOG     
+
+[Clerk]: Your application is running with your claimed keys.
+You can safely remove the .clerk/ from your project.
+
+[00:08:51.415] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:08:52.702] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_04ff23ca-7ad5-4525-a8d6-b1f7e9c478ef__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:08:52.702] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:08:52.702] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:08:52.702] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765799689525}
+[00:08:52.702] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:17:43.869] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:17:44.077] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:17:44.077] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_75d4553d-8d05-40dd-8da7-f3063f57dc5b__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:17:44.077] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:17:44.077] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:17:44.077] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800221921}
+[00:17:46.968] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800224810}
+[00:17:47.313] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800225145}
+[00:17:47.488] Browser WARN    Clerk: The prop "redirectUrl" is deprecated and should be replaced with the new "fallbackRedirectUrl" or "forceRedirectUrl" props instead. Learn more: https://clerk.com/docs/guides/custom-redirects#redirect-url-props
+[00:17:47.864] Browser ERROR   unhandledRejection: Error: 
+Clerk: The <SignIn/> component is not configured correctly. The most likely reasons for this error are:
+
+1. The "/login" route is not a catch-all route.
+It is recommended to convert this route to a catch-all route, eg: "/login/[[...rest]]/page.tsx". Alternatively, you can update the <SignIn/> component to use hash-based routing by setting the "routing" prop to "hash".
+
+2. The <SignIn/> component is mounted in a catch-all route, but all routes under "/login" are protected by the middleware.
+To resolve this, ensure that the middleware does not protect the catch-all route or any of its children. If you are using the "createRouteMatcher" helper, consider adding "(.*)" to the end of the route pattern, eg: "/login(.*)". For more information, see: https://clerk.com/docs/reference/nextjs/clerk-middleware#create-route-matcher
+
+[00:17:58.573] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:17:58.772] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:17:58.772] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_c6bafe81-7649-4054-92e5-ab0f30913d7d__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:17:58.772] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:17:58.772] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:17:58.772] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800236615}
+[00:17:59.055] Browser WARN    Clerk: The prop "redirectUrl" is deprecated and should be replaced with the new "fallbackRedirectUrl" or "forceRedirectUrl" props instead. Learn more: https://clerk.com/docs/guides/custom-redirects#redirect-url-props
+[00:17:59.055] Browser ERROR   unhandledRejection: Error: 
+Clerk: The <SignIn/> component is not configured correctly. The most likely reasons for this error are:
+
+1. The "/login" route is not a catch-all route.
+It is recommended to convert this route to a catch-all route, eg: "/login/[[...rest]]/page.tsx". Alternatively, you can update the <SignIn/> component to use hash-based routing by setting the "routing" prop to "hash".
+
+2. The <SignIn/> component is mounted in a catch-all route, but all routes under "/login" are protected by the middleware.
+To resolve this, ensure that the middleware does not protect the catch-all route or any of its children. If you are using the "createRouteMatcher" helper, consider adding "(.*)" to the end of the route pattern, eg: "/login(.*)". For more information, see: https://clerk.com/docs/reference/nextjs/clerk-middleware#create-route-matcher
+
+[00:18:03.294] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/register color: rgb(120, 120, 120) color: inherit {"dp":"/register","o":"http://localhost:3000/register","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800241124}
+[00:18:03.400] Browser ERROR   unhandledRejection: Error: 
+Clerk: The <SignUp/> component is not configured correctly. The most likely reasons for this error are:
+
+1. The "/register" route is not a catch-all route.
+It is recommended to convert this route to a catch-all route, eg: "/register/[[...rest]]/page.tsx". Alternatively, you can update the <SignUp/> component to use hash-based routing by setting the "routing" prop to "hash".
+
+2. The <SignUp/> component is mounted in a catch-all route, but all routes under "/register" are protected by the middleware.
+To resolve this, ensure that the middleware does not protect the catch-all route or any of its children. If you are using the "createRouteMatcher" helper, consider adding "(.*)" to the end of the route pattern, eg: "/register(.*)". For more information, see: https://clerk.com/docs/reference/nextjs/clerk-middleware#create-route-matcher
+
+[00:19:53.148] Server  LOG     
+
+[Clerk]: Your application is running with your claimed keys.
+You can safely remove the .clerk/ from your project.
+
+[00:19:53.201] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800351027}
+[00:19:53.332] Browser ERROR   unhandledRejection: Error: 
+Clerk: The <SignIn/> component is not configured correctly. The most likely reasons for this error are:
+
+1. The "/login" route is not a catch-all route.
+It is recommended to convert this route to a catch-all route, eg: "/login/[[...rest]]/page.tsx". Alternatively, you can update the <SignIn/> component to use hash-based routing by setting the "routing" prop to "hash".
+
+2. The <SignIn/> component is mounted in a catch-all route, but all routes under "/login" are protected by the middleware.
+To resolve this, ensure that the middleware does not protect the catch-all route or any of its children. If you are using the "createRouteMatcher" helper, consider adding "(.*)" to the end of the route pattern, eg: "/login(.*)". For more information, see: https://clerk.com/docs/reference/nextjs/clerk-middleware#create-route-matcher
+
+[00:19:53.789] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800351629}
+[00:19:56.391] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:19:56.586] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:19:56.586] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_35b1c01d-4d6a-4a25-a251-06a206615342__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:19:56.586] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:19:56.586] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[00:19:56.586] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800354415}
+[00:19:58.435] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/dashboard. Falling back to browser navigation. {}
+[00:20:05.930] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:20:06.156] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_d38d7735-912e-4f94-9d12-8615874b58fa__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:20:06.156] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:20:06.156] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:20:06.156] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800363981}
+[00:20:06.156] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:20:09.876] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:20:10.050] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:20:10.050] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_7333f03c-189b-4fb9-9a88-968b22c67bc1__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:20:10.050] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:20:10.050] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[00:20:10.050] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800367889}
+[00:20:11.944] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800369584}
+[00:20:11.944] Browser WARN    Clerk: The prop "redirectUrl" is deprecated and should be replaced with the new "fallbackRedirectUrl" or "forceRedirectUrl" props instead. Learn more: https://clerk.com/docs/guides/custom-redirects#redirect-url-props
+[00:20:11.944] Browser INFO    🔒 Clerk:
+The <SignIn/> component cannot render when a user is already signed in, unless the application allows multiple sessions. Since a user is signed in and this application only allows a single session, Clerk is redirecting to the `afterSignIn` URL instead.
+(This notice only appears in development)
+[00:20:11.944] Browser ERROR   unhandledRejection: Error: 
+Clerk: The <SignIn/> component is not configured correctly. The most likely reasons for this error are:
+
+1. The "/login" route is not a catch-all route.
+It is recommended to convert this route to a catch-all route, eg: "/login/[[...rest]]/page.tsx". Alternatively, you can update the <SignIn/> component to use hash-based routing by setting the "routing" prop to "hash".
+
+2. The <SignIn/> component is mounted in a catch-all route, but all routes under "/login" are protected by the middleware.
+To resolve this, ensure that the middleware does not protect the catch-all route or any of its children. If you are using the "createRouteMatcher" helper, consider adding "(.*)" to the end of the route pattern, eg: "/login(.*)". For more information, see: https://clerk.com/docs/reference/nextjs/clerk-middleware#create-route-matcher
+
+[00:20:11.944] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800369778}
+[00:20:25.268] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:20:25.454] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:20:25.454] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_0088ff81-76f6-410a-b3ec-68b4f2d6ca39__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:20:25.454] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:20:25.454] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:20:25.454] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800383286}
+[00:20:40.061] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:20:40.250] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:20:40.250] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_e81019b1-d992-4cad-bc1b-f4a5c1971e0f__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:20:40.250] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:20:40.250] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[00:20:40.250] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765800398094}
+[00:35:27.114] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:35:27.331] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:35:27.331] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_7d3b09be-6802-45d6-9ff2-25017fa133eb__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+
+[00:35:27.331] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:35:27.331] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:35:27.331] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801285168}
+[00:35:30.321] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801288163}
+[00:35:44.339] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801302184}
+[00:35:49.810] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801307652}
+[00:35:51.254] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801309085}
+[00:36:11.154] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:36:11.381] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_f1064fbb-f703-4851-b305-d79c251c8ea2__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+                    ...
+                      <div data-slot="card" className="bg-card te...">
+                        <CardHeader>
+                        <CardContent className="space-y-4">
+                          <div data-slot="card-content" className="px-6 space...">
+                            <div className="flex items...">
+                              <div>
+                              <div className="flex gap-2">
+                                <Button>
+                                <Button size="sm" variant="default" onClick={function onClick}>
+                                  <button
+                                    data-slot="button"
++                                   className={"inline-flex items-center justify-center whitespace-nowrap text-sm fon..."}
+-                                   className={"inline-flex items-center justify-center whitespace-nowrap text-sm fon..."}
+                                    onClick={function onClick}
+                                  >
++                                   Dark
+                                ...
+                    ...
+
+[00:36:11.381] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:36:11.381] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:36:11.381] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/settings","route":"/dashboard/settings"}
+[00:36:11.381] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801329223}
+[00:36:15.605] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:36:15.804] Browser WARN    Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+[00:36:15.804] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <ClerkProviderBase publishableKey="pk_test_YW..." proxyUrl="" domain="" isSatellite={false} signInUrl="" signUpUrl="" ...>
+      <ClerkContextProvider initialState={null} isomorphicClerkOptions={{...}}>
+        <OrganizationProvider organization={undefined}>
+          <SWRConfigCompat swrConfig={undefined}>
+            <SWRConfig value={undefined}>
+              <__experimental_CheckoutProvider value={undefined}>
+                <RouterTelemetry>
+                <ClerkJSScript>
+                <html lang="en" suppressHydrationWarning={true}>
+                  <body
+                    className="font-sans antialiased"
+-                   __processed_49537857-41cb-4e1b-9805-84491a03c6b0__="true"
+-                   bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6InBwaGdkYmdsZGxtaWNmZGtob25kbGFma2lvbW5lbG5r..."
+                  >
+                    ...
+                      <div data-slot="card" className="bg-card te...">
+                        <CardHeader>
+                        <CardContent className="space-y-4">
+                          <div data-slot="card-content" className="px-6 space...">
+                            <div className="flex items...">
+                              <div>
+                              <div className="flex gap-2">
+                                <Button>
+                                <Button size="sm" variant="default" onClick={function onClick}>
+                                  <button
+                                    data-slot="button"
++                                   className={"inline-flex items-center justify-center whitespace-nowrap text-sm fon..."}
+-                                   className={"inline-flex items-center justify-center whitespace-nowrap text-sm fon..."}
+                                    onClick={function onClick}
+                                  >
++                                   Dark
+                                ...
+                    ...
+
+[00:36:15.804] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:36:15.804] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/settings","route":"/dashboard/settings"}
+[00:36:15.804] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801333643}
+[00:36:18.027] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1765801335866}
