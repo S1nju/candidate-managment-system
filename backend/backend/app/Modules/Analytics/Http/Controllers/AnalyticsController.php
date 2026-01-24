@@ -32,7 +32,7 @@ class AnalyticsController extends Controller
         // Documents signed per day (last 14 days)
         $signedPerDay = Document::where('status', 'signed')
             ->where('updated_at', '>=', now()->subDays(14))
-            ->selectRaw('DATE(updated_at) as date, COUNT(*) as count')
+            ->selectRaw('updated_at::date as date, COUNT(*) as count')
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -69,13 +69,13 @@ class AnalyticsController extends Controller
         
         // Get monthly data for the selected year
         $monthlyData = Candidate::select(
-                DB::raw('MONTH(created_at) as month'),
+                DB::raw("CAST(EXTRACT(MONTH FROM created_at) AS INTEGER) as month"),
                 DB::raw('COUNT(*) as applications'),
-                DB::raw('SUM(CASE WHEN contract_status = "signed" THEN 1 ELSE 0 END) as signed'),
-                DB::raw('SUM(CASE WHEN contract_status = "rejected" THEN 1 ELSE 0 END) as rejected')
+                DB::raw("SUM(CASE WHEN contract_status = 'signed' THEN 1 ELSE 0 END) as signed"),
+                DB::raw("SUM(CASE WHEN contract_status = 'rejected' THEN 1 ELSE 0 END) as rejected")
             )
             ->whereYear('created_at', $year)
-            ->groupBy(DB::raw('MONTH(created_at)'))
+            ->groupBy(DB::raw("CAST(EXTRACT(MONTH FROM created_at) AS INTEGER)"))
             ->orderBy('month')
             ->get()
             ->keyBy('month');
@@ -93,7 +93,7 @@ class AnalyticsController extends Controller
         }
         
         // Get available years
-        $availableYears = Candidate::select(DB::raw('YEAR(created_at) as year'))
+        $availableYears = Candidate::select(DB::raw('CAST(EXTRACT(YEAR FROM created_at) AS INTEGER) as year'))
             ->distinct()
             ->orderBy('year', 'desc')
             ->pluck('year')

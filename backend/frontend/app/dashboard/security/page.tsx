@@ -37,6 +37,7 @@ export default function SecurityPage() {
     const [editingUser, setEditingUser] = useState<any>(null)
     const [selectedRoles, setSelectedRoles] = useState<string[]>([])
     const [isUpdating, setIsUpdating] = useState(false)
+    const [isCreatingUser, setIsCreatingUser] = useState(false)
 
     const isAdmin = currentUser?.roles?.some((r: any) => r.name === 'admin')
 
@@ -93,6 +94,10 @@ export default function SecurityPage() {
                         Manage user accounts, roles, and permissions.
                     </p>
                 </div>
+                <Button onClick={() => setIsCreatingUser(true)}>
+                    <UserIcon className="w-4 h-4 mr-2" />
+                    Create User
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 gap-6">
@@ -199,6 +204,110 @@ export default function SecurityPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Create User Dialog */}
+            <CreateUserDialog
+                open={isCreatingUser}
+                onOpenChange={setIsCreatingUser}
+                onSuccess={() => mutate("/api/users")}
+                roles={roles}
+            />
         </div>
+    )
+}
+
+function CreateUserDialog({ open, onOpenChange, onSuccess, roles }: any) {
+    const { toast } = useToast()
+    const [isLoading, setIsLoading] = useState(false)
+    const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        password: "",
+        roles: [] as string[]
+    })
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setIsLoading(true)
+        try {
+            await axios.post("/api/users", formData)
+            toast({ title: "Success", description: "User created successfully" })
+            setFormData({ name: "", email: "", password: "", roles: [] })
+            onOpenChange(false)
+            onSuccess()
+        } catch (err: any) {
+            toast({
+                title: "Error",
+                description: err?.response?.data?.message || "Failed to create user",
+                variant: "destructive"
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                    <DialogDescription>Add a new user to the system (e.g. Worker)</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid gap-2">
+                        <label htmlFor="name">Name</label>
+                        <Input
+                            id="name"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <label htmlFor="email">Email</label>
+                        <Input
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <label htmlFor="password">Password</label>
+                        <Input
+                            id="password"
+                            type="password"
+                            value={formData.password}
+                            onChange={e => setFormData({ ...formData, password: e.target.value })}
+                            required
+                            minLength={8}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <label className="text-sm font-medium">Roles</label>
+                        <div className="flex flex-wrap gap-2 border p-2 rounded max-h-32 overflow-y-auto">
+                            {roles?.map((role: any) => (
+                                <div key={role.id} className="flex items-center gap-2">
+                                    <Switch
+                                        id={`new-role-${role.id}`}
+                                        checked={formData.roles.includes(role.name)}
+                                        onCheckedChange={checked => {
+                                            if (checked) setFormData(prev => ({ ...prev, roles: [...prev.roles, role.name] }))
+                                            else setFormData(prev => ({ ...prev, roles: prev.roles.filter(r => r !== role.name) }))
+                                        }}
+                                    />
+                                    <label htmlFor={`new-role-${role.id}`} className="text-sm">{role.name}</label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                        <Button type="submit" disabled={isLoading}>{isLoading ? "Creating..." : "Create User"}</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     )
 }

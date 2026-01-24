@@ -2,9 +2,12 @@
  
 use App\Modules\Candidates\Http\Controllers\CandidateController;
 use App\Modules\Candidates\Http\Controllers\ContractController;
+use App\Modules\Candidates\Http\Controllers\IdentityVerificationController;
 use Illuminate\Support\Facades\Route;
  
-Route::post('/candidates', [CandidateController::class, 'store']);
+// Route::post('/candidates', [CandidateController::class, 'store']);
+Route::post('/candidates/verify-identity', [IdentityVerificationController::class, 'initiate'])->middleware('throttle:60,1');
+Route::get('/candidates/verify-callback', [IdentityVerificationController::class, 'callback'])->middleware('throttle:60,1');
  
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/candidates', [CandidateController::class, 'index']);

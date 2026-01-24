@@ -8,8 +8,8 @@ import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
 
 // Set up PDF.js worker for react-pdf v7+ and pdfjs-dist v4+
-// Set up PDF.js worker - matching API version reported in error
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs`
+// Set up PDF.js worker - matching the version used by the library
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 
 interface PDFViewerProps {

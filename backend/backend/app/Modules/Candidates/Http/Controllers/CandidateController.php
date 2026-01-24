@@ -31,31 +31,24 @@ class CandidateController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(\App\Modules\Candidates\Http\Requests\StoreCandidateRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'nullable|string|max:30',
-            'position' => 'nullable|string|max:255',
-            'gender' => 'nullable|string',
-            'nationality' => 'nullable|string',
-            'dob' => 'nullable|date',
-            'address' => 'nullable|string',
-            'social_security_number' => 'nullable|string|size:15',
-            'emergency_phone' => 'nullable|string',
-            'recruitment_city' => 'nullable|string',
-            'animator_name' => 'nullable|string',
-            'product_justcost' => 'nullable|string',
-            'contract_type' => 'nullable|string',
-            'start_date' => 'nullable|date',
-            'data' => 'nullable|array',
-        ]);
+        $data = $request->validated();
 
-        if (isset($data['data']) && is_array($data['data'])) {
-            // No encoding needed if handled by casts, but verifying model setup
-            // $data['data'] = json_encode($data['data']); 
+        if ($request->hasFile('photo')) {
+            $path = $request->file('photo')->store('candidates/photos', 'public');
+            $data['photo_url'] = '/storage/' . $path;
+            unset($data['photo']); // Remove file object from data
         }
+
+        if ($request->hasFile('cv')) {
+             $path = $request->file('cv')->store('candidates/cvs', 'public');
+             $data['cv_url'] = '/storage/' . $path;
+             unset($data['cv']);
+        }
+        
+        // Ensure data field is set if null (optional, depending on model)
+        // $data['data'] = $data['data'] ?? [];
 
         $candidate = Candidate::create($data);
         return response()->json($candidate, 201);

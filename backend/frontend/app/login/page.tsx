@@ -72,9 +72,9 @@ export default function LoginPage() {
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign In
                         </Button>
-                        <Button variant="link" className="w-full" asChild>
+                        {/* <Button variant="link" className="w-full" asChild>
                             <Link href="/register">Don't have an account? Sign up</Link>
-                        </Button>
+                        </Button> */}
                     </CardFooter>
                 </form>
             </Card>

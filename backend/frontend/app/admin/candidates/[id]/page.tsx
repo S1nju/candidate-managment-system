@@ -50,9 +50,20 @@ export default function AdminCandidateDetailPage({ params }: { params: { id: str
           <div><span className="font-semibold text-muted-foreground block">Gender</span> {candidate.gender}</div>
           <div><span className="font-semibold text-muted-foreground block">Nationality</span> {candidate.nationality}</div>
           <div><span className="font-semibold text-muted-foreground block">Date of Birth</span> {candidate.dob ? new Date(candidate.dob).toLocaleDateString() : '-'}</div>
-          <div className="md:col-span-2"><span className="font-semibold text-muted-foreground block">Address</span> {candidate.address}</div>
+          <div><span className="font-semibold text-muted-foreground block">Address</span> {candidate.address}</div>
           <div><span className="font-semibold text-muted-foreground block">Social Security Number</span> {candidate.social_security_number}</div>
           <div><span className="font-semibold text-muted-foreground block">Emergency Contact</span> {candidate.emergency_phone}</div>
+          {candidate.photo_url && (
+            <div className="md:col-span-2 mt-4">
+              <span className="font-semibold text-muted-foreground block mb-2">Photo</span>
+              <img src={candidate.photo_url} alt="Candidate Photo" className="w-32 h-32 object-cover rounded-lg border" />
+            </div>
+          )}
+          {candidate.cv_url && (
+            <div className="md:col-span-2 mt-2">
+              <a href={candidate.cv_url} target="_blank" rel="noreferrer" className="text-blue-600 underline">View CV</a>
+            </div>
+          )}
         </CardContent>
       </Card>
 
