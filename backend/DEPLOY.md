@@ -28,7 +28,7 @@ Ensure your project structure on the server matches:
     APP_ENV=production
     APP_KEY=base64:YOUR_GENERATED_KEY_HERE
     APP_DEBUG=false
-    APP_URL=http://<your-vps-ip>
+    APP_URL=https://signme.signmehere.cloud
 
     LOG_CHANNEL=stack
     LOG_LEVEL=debug
@@ -55,7 +55,7 @@ Ensure your project structure on the server matches:
     REDIS_PASSWORD=null
     REDIS_PORT=6379
 
-    SANCTUM_STATEFUL_DOMAINS=<your-vps-ip>
+    SANCTUM_STATEFUL_DOMAINS=signme.signmehere.cloud
     
     DIDIT_API_KEY=your_didit_key
     DIDIT_WORKFLOW_ID=your_workflow_id
@@ -63,13 +63,20 @@ Ensure your project structure on the server matches:
     
     *Generate `APP_KEY` by running `docker-compose run --rm app php artisan key:generate --show` after initial setup, or generate locally.*
 
-3.  **Build and Run**:
-    Run the following command in the root directory (where `docker-compose.yml` is):
+3.  **HTTPS Setup (First Time Only)**:
+    Run the initialization script to generate SSL certificates:
+    ```bash
+    chmod +x init-letsencrypt.sh
+    ./init-letsencrypt.sh
+    ```
+    *Follow the prompts (if any) or wait for it to complete.*
+
+4.  **Confirm Build**:
     ```bash
     docker-compose up -d --build
     ```
 
-4.  **Run Migrations & Seeds**:
+5.  **Run Migrations & Seeds**:
     ```bash
     docker-compose exec app php artisan migrate --force
     docker-compose exec app php artisan db:seed --force
@@ -77,9 +84,8 @@ Ensure your project structure on the server matches:
 
     *Note: This creates a default admin account: `admin@signme.com` / `password`.*
 
-5.  **Access Application**:
-    - Frontend: `http://<your-vps-ip>`
-    - API: `http://<your-vps-ip>/api`
+6.  **Access Application**:
+    - App: `https://signme.signmehere.cloud`
 
 ## SSL (Optional but Recommended)
 For SSL, verify `nginx` configuration to use Certbot.
