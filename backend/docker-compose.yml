@@ -11,7 +11,7 @@ services:
         restart: unless-stopped
         working_dir: /var/www
         volumes:
-            # - ./backend:/var/www # Do not mount code in production
+            - backend_code:/var/www
             - storage_data:/var/www/storage
         environment:
             DB_CONNECTION: mysql
@@ -96,3 +96,4 @@ networks:
 volumes:
     dbdata:
     storage_data:
+    backend_code:
