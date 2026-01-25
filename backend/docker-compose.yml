@@ -48,6 +48,15 @@ services:
             - ./certbot/www:/var/www/certbot
         networks:
             - signme-network
+
+    certbot:
+        image: certbot/certbot
+        container_name: signme-certbot
+        volumes:
+            - ./certbot/conf:/etc/letsencrypt
+            - ./certbot/www:/var/www/certbot
+        networks:
+            - signme-network
     
     db:
         image: mysql:8.0
