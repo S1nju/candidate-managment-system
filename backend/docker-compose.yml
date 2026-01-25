@@ -28,6 +28,8 @@ services:
         build:
             context: ./frontend
             dockerfile: Dockerfile
+            args:
+                NEXT_PUBLIC_BACKEND_URL: ""
         image: signme-frontend
         container_name: signme-frontend
         restart: unless-stopped
