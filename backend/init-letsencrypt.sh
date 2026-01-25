@@ -5,7 +5,7 @@ if ! [ -x "$(command -v docker compose)" ]; then
   exit 1
 fi
 
-domains=(signme.signmehere.cloud)
+domains=(signmehere.cloud)
 rsa_key_size=4096
 data_path="./certbot"
 email="admin@signme.signmehere.cloud" # Adding a valid email is recommended

@@ -28,7 +28,7 @@ Ensure your project structure on the server matches:
     APP_ENV=production
     APP_KEY=base64:YOUR_GENERATED_KEY_HERE
     APP_DEBUG=false
-    APP_URL=https://signme.signmehere.cloud
+    APP_URL=https://signmehere.cloud
 
     LOG_CHANNEL=stack
     LOG_LEVEL=debug
@@ -55,7 +55,7 @@ Ensure your project structure on the server matches:
     REDIS_PASSWORD=null
     REDIS_PORT=6379
 
-    SANCTUM_STATEFUL_DOMAINS=signme.signmehere.cloud
+    SANCTUM_STATEFUL_DOMAINS=signmehere.cloud
     
     DIDIT_API_KEY=your_didit_key
     DIDIT_WORKFLOW_ID=your_workflow_id
@@ -85,7 +85,7 @@ Ensure your project structure on the server matches:
     *Note: This creates a default admin account: `admin@signme.com` / `password`.*
 
 6.  **Access Application**:
-    - App: `https://signme.signmehere.cloud`
+    - App: `https://signmehere.cloud`
 
 ## SSL (Optional but Recommended)
 For SSL, verify `nginx` configuration to use Certbot.
