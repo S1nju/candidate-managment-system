@@ -3,9 +3,6 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
-            args:
-                user: signme
-                uid: 1000
         image: signme-backend
         container_name: signme-app
         restart: unless-stopped
@@ -73,9 +70,6 @@ services:
         build:
             context: ./backend
             dockerfile: Dockerfile
-            args:
-                user: signme
-                uid: 1000
         container_name: signme-queue
         restart: unless-stopped
         command: "php artisan queue:work"
