@@ -25,6 +25,6 @@ php artisan view:cache
 echo "Linking storage..."
 php artisan storage:link
 
-# Start PHP-FPM
+# Start PHP-FPM (or passed command)
 echo "Starting PHP-FPM..."
-php-fpm
+exec "$@"

@@ -37,9 +37,11 @@ RUN composer install --no-dev --optimize-autoloader
 # Ensure ownership by www-data
 RUN chown -R www-data:www-data /var/www
 
-# Remove custom user logic, stay as root for entrypoint permission fixing
-# USER $user
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 9000
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php-fpm"]
