@@ -1,5 +1,10 @@
 "use client"
 import { Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { XCircle } from "lucide-react"
 
 function ApplyFailedContent() {
     const searchParams = useSearchParams()
