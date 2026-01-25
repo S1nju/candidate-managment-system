@@ -40,7 +40,8 @@ services:
         ports:
             - "80:80"
         volumes:
-            - ./backend:/var/www
+            - ./backend/public:/var/www/public
+            - storage_data:/var/www/storage
             - ./nginx/conf.d:/etc/nginx/conf.d
         networks:
             - signme-network
