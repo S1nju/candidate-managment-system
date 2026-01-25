@@ -1,0 +1,91 @@
+services:
+    app:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+            args:
+                user: www-data
+                uid: 1000
+        image: signme-backend
+        container_name: signme-app
+        restart: unless-stopped
+        working_dir: /var/www
+        volumes:
+            - ./backend:/var/www
+        environment:
+            DB_CONNECTION: mysql
+            DB_HOST: db
+            DB_PORT: 3306
+            DB_DATABASE: ${DB_DATABASE:-signme}
+            DB_USERNAME: ${DB_USERNAME:-signme}
+            DB_PASSWORD: ${DB_PASSWORD:-password}
+            CACHE_STORE: redis
+            REDIS_HOST: redis
+        networks:
+            - signme-network
+
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        image: signme-frontend
+        container_name: signme-frontend
+        restart: unless-stopped
+        networks:
+            - signme-network
+
+    webserver:
+        image: nginx:alpine
+        container_name: signme-nginx
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - ./backend:/var/www
+            - ./nginx/conf.d:/etc/nginx/conf.d
+        networks:
+            - signme-network
+    
+    db:
+        image: mysql:8.0
+        container_name: signme-db
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE:-signme}
+            MYSQL_USER: ${DB_USERNAME:-signme}
+            MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+        volumes:
+            - dbdata:/var/lib/mysql
+        networks:
+            - signme-network
+
+    redis:
+        image: redis:alpine
+        container_name: signme-redis
+        restart: unless-stopped
+        networks:
+            - signme-network
+
+    queue:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        container_name: signme-queue
+        restart: unless-stopped
+        command: "php artisan queue:work"
+        volumes:
+            - ./backend:/var/www
+        networks:
+            - signme-network
+        depends_on:
+            - app
+            - db
+            - redis
+
+networks:
+    signme-network:
+        driver: bridge
+
+volumes:
+    dbdata:
