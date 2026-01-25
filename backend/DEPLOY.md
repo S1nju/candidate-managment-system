@@ -22,13 +22,46 @@ Ensure your project structure on the server matches:
     Transfer your code to the VPS (e.g., using `rsync` or `git clone`).
 
 2.  **Environment Setup**:
-    Copy `backend/.env.example` to `backend/.env` (or root depending on setup) and configure:
+    Create `backend/.env` with the following content (update the secrets!):
     ```ini
+    APP_NAME="SignMe"
     APP_ENV=production
+    APP_KEY=base64:YOUR_GENERATED_KEY_HERE
     APP_DEBUG=false
+    APP_URL=http://<your-vps-ip>
+
+    LOG_CHANNEL=stack
+    LOG_LEVEL=debug
+
+    DB_CONNECTION=mysql
     DB_HOST=db
+    DB_PORT=3306
+    DB_DATABASE=signme
+    DB_USERNAME=signme
+    DB_PASSWORD=password
+
+    BROADCAST_CONNECTION=log
+    FILESYSTEM_DISK=local
+    
+    # Store photos in public for now (mapped to docker volume)
+    # FILESYSTEM_DISK=public 
+    # Use s3 if you configured it
+
+    QUEUE_CONNECTION=redis
+    CACHE_STORE=redis
+    SESSION_DRIVER=redis
+    
     REDIS_HOST=redis
+    REDIS_PASSWORD=null
+    REDIS_PORT=6379
+
+    SANCTUM_STATEFUL_DOMAINS=<your-vps-ip>
+    
+    DIDIT_API_KEY=your_didit_key
+    DIDIT_WORKFLOW_ID=your_workflow_id
     ```
+    
+    *Generate `APP_KEY` by running `docker-compose run --rm app php artisan key:generate --show` after initial setup, or generate locally.*
 
 3.  **Build and Run**:
     Run the following command in the root directory (where `docker-compose.yml` is):
@@ -36,10 +69,13 @@ Ensure your project structure on the server matches:
     docker-compose up -d --build
     ```
 
-4.  **Run Migrations**:
+4.  **Run Migrations & Seeds**:
     ```bash
     docker-compose exec app php artisan migrate --force
+    docker-compose exec app php artisan db:seed --force
     ```
+
+    *Note: This creates a default admin account: `admin@signme.com` / `password`.*
 
 5.  **Access Application**:
     - Frontend: `http://<your-vps-ip>`

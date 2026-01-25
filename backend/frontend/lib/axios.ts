@@ -1,7 +1,7 @@
 import axios from "axios"
 
 const axiosClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000",
+  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000",
   headers: {
     "X-Requested-With": "XMLHttpRequest",
   },
