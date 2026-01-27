@@ -130,7 +130,10 @@ class IdentityVerificationController extends Controller
  
             if ($response->successful() && $response->json()['status'] === 'Approved') {
                 // Save candidate
-                $candidate = Candidate::create($verification->form_data);
+                $candidateData = $verification->form_data;
+                $candidateData['didit_session_id'] = $sessionId;
+
+                $candidate = Candidate::create($candidateData);
                 $verification->update(['status' => 'approved']);
  
                 // Redirect to frontend success page
@@ -141,5 +144,24 @@ class IdentityVerificationController extends Controller
         $verification->update(['status' => strtolower($status)]);
  
         return redirect(config('app.frontend_url', 'http://localhost:3000') . '/candidate/apply/failed?status=' . $status);
+    }
+ 
+    public function getDiditDecision(string $sessionId): JsonResponse
+    {
+        $apiKey = config('services.didit.api_key');
+        
+        $response = Http::withHeaders([
+            'x-api-key' => $apiKey,
+            'accept' => 'application/json',
+        ])->get("https://verification.didit.me/v3/session/{$sessionId}/decision/");
+
+        if ($response->failed()) {
+            return response()->json([
+                'message' => 'Failed to fetch Didit decision',
+                'error' => $response->json()
+            ], $response->status());
+        }
+
+        return response()->json($response->json());
     }
 }

@@ -15,3 +15,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index']);
+});

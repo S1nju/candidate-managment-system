@@ -13,7 +13,7 @@ class Candidate extends Model
         'name',
         'email',
         'phone',
-        'position', // Assuming this maps to 'Type de contrat' or similar, or we might need to add specific fields
+        'position',
         'gender',
         'nationality',
         'dob',
@@ -28,11 +28,11 @@ class Candidate extends Model
         'signature_id',
         'cv_url',
         'data',
-        'photo_url',
-        'skills',
-        'education',
         'contract_status',
-        'contract_path',
+        'contract_url',
+        'form_id',
+        'assigned_to',
+        'didit_session_id',
     ];
 
     protected $casts = [
@@ -46,5 +46,20 @@ class Candidate extends Model
     public function signature()
     {
         return $this->belongsTo(\App\Modules\Signing\Models\Signature::class);
+    }
+
+    public function signatures()
+    {
+        return $this->hasMany(\App\Modules\Documents\Models\DocumentSignature::class);
+    }
+
+    public function form()
+    {
+        return $this->belongsTo(\App\Models\Modules\Forms\Models\Form::class);
+    }
+
+    public function assignedTo()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'assigned_to');
     }
 }

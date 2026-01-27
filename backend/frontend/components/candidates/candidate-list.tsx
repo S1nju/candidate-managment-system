@@ -28,12 +28,20 @@ import {
   PenToolIcon,
   EyeIcon,
   Mail,
-  Phone
+  Phone,
+  UserPlus,
+  Send,
+  CheckSquare,
+  Square
 } from "lucide-react"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { useLanguage } from "@/context/language-context"
+import { useAuth } from "@/hooks/use-auth"
+import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "@/hooks/use-toast"
+import { EmailEditorDialog } from "@/components/candidates/email-editor-dialog"
 
 interface Candidate {
   id: number
@@ -45,23 +53,36 @@ interface Candidate {
   created_at: string
   signature_id: number | null
   contract_status?: string
-  contract_path?: string
+  assigned_to?: number
+  assigned_to_user?: any
+  form?: {
+    id: number
+    title: string
+  }
 }
 
 export function CandidateList() {
   const { t } = useLanguage()
+  const { user: currentUser } = useAuth()
+  const isAdmin = currentUser?.roles?.some((r: any) => r.name === 'admin')
+
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("all")
   const [page, setPage] = useState(1)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [isEmailOpen, setIsEmailOpen] = useState(false)
   const pageSize = 15
 
-  const { data: response, error, isLoading } = useSWR(
-    "/api/candidates",
-    () => axios.get("/api/candidates").then((res) => res.data)
-  )
+  const { data: response, error, isLoading, mutate } = useSWR("/api/candidates")
 
-  // Client-side filtering for now since API might not support it yet
+  const { data: workers } = useSWR(isAdmin ? "/api/users?role=worker" : null)
+
   let candidates = (response?.data as Candidate[] || [])
+
+  // Logic: Candidates only show to admin initially, or to assigned worker
+  if (!isAdmin) {
+    candidates = candidates.filter(c => c.assigned_to === currentUser?.id)
+  }
 
   if (search) {
     const lowerSearch = search.toLowerCase()
@@ -71,16 +92,34 @@ export function CandidateList() {
     )
   }
 
-  if (status !== "all") {
-    candidates = candidates.filter(c => {
-      if (status === "signed") return c.contract_status === "signed"
-      if (status === "pending") return c.contract_status === "pending"
-      if (status === "rejected") return c.contract_status === "rejected"
-      return true
-    })
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
   }
 
-  // Pagination logic (client-side for now)
+  const toggleSelectAll = () => {
+    if (selectedIds.length === paginatedCandidates.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(paginatedCandidates.map(c => c.id))
+    }
+  }
+
+  const handleAssign = async (candidateId: number, workerId: string) => {
+    try {
+      await axios.post(`/api/candidates/${candidateId}/assign`, { assigned_to: workerId })
+      toast({ title: "Candidate assigned" })
+      mutate()
+    } catch (error) {
+      toast({ title: "Failed to assign", variant: "destructive" })
+    }
+  }
+
+  const handleBulkEmail = async () => {
+    if (selectedIds.length === 0) return
+    setIsEmailOpen(true)
+  }
+
+  // Pagination logic
   const total = candidates.length
   const totalPages = Math.ceil(total / pageSize)
   const paginatedCandidates = candidates.slice((page - 1) * pageSize, page * pageSize)
@@ -98,21 +137,29 @@ export function CandidateList() {
   }
 
   if (error) {
-    return <div className="text-red-500 p-4 border rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-900/30 font-medium">{t("common.error")}</div>
+    return <div className="text-red-500 p-4 border rounded-lg bg-red-50 font-medium">{t("common.error")}</div>
   }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters & Bulk Actions */}
       <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center justify-between pb-2">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t("candidates.list.search_placeholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 bg-card"
-          />
+        <div className="flex items-center gap-4 flex-1">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={t("candidates.list.search_placeholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 h-10 bg-card"
+            />
+          </div>
+          {isAdmin && selectedIds.length > 0 && (
+            <Button variant="outline" size="sm" onClick={handleBulkEmail} className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Email ({selectedIds.length})
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
@@ -133,36 +180,55 @@ export function CandidateList() {
       <div className="rounded-xl border shadow-sm overflow-hidden bg-card border-slate-200 dark:border-slate-800">
         <Table>
           <TableHeader className="bg-muted/50">
-            <TableRow className="hover:bg-transparent border-slate-200 dark:border-slate-800">
-              <TableHead className="font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.name")}</TableHead>
-              <TableHead className="font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.contact")}</TableHead>
-              <TableHead className="font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.position")}</TableHead>
-              <TableHead className="font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.status")}</TableHead>
-              <TableHead className="font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.created_at")}</TableHead>
-              <TableHead className="text-right font-semibold text-slate-900 dark:text-slate-100">{t("candidates.list.table.actions")}</TableHead>
+            <TableRow>
+              {isAdmin && (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedIds.length === paginatedCandidates.length && paginatedCandidates.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
+              )}
+              <TableHead className="font-semibold">{t("candidates.list.table.name")}</TableHead>
+              <TableHead className="font-semibold">{t("candidates.list.table.contact")}</TableHead>
+              <TableHead className="font-semibold">{t("candidates.list.table.form")}</TableHead>
+              <TableHead className="font-semibold">{t("candidates.list.table.position")}</TableHead>
+
+              <TableHead className="font-semibold">{t("candidates.list.table.status")}</TableHead>
+              {isAdmin && <TableHead className="font-semibold">Assigned To</TableHead>}
+              <TableHead className="text-right font-semibold">{t("candidates.list.table.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i} className="border-slate-200 dark:border-slate-800">
+                <TableRow key={i}>
+                  {isAdmin && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                   <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                  {isAdmin && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
                   <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))
             ) : paginatedCandidates.length > 0 ? (
               paginatedCandidates.map((c) => (
-                <TableRow key={c.id} className="hover:bg-muted/30 transition-colors border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
+                  {isAdmin && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(c.id)}
+                        onCheckedChange={() => toggleSelect(c.id)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-muted text-slate-600 dark:text-slate-400">
+                      <div className="p-2 rounded-lg bg-muted">
                         <UserIcon className="w-4 h-4" />
                       </div>
-                      <span className="text-slate-900 dark:text-slate-100 font-semibold">{c.name}</span>
+                      <span className="font-semibold">{c.name}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -171,60 +237,47 @@ export function CandidateList() {
                       {c.phone && <div className="flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" /> {c.phone}</div>}
                     </div>
                   </TableCell>
+                  <TableCell>
+                    {c.form ? (
+                      <Badge variant="outline" className="font-normal">{c.form.title}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Direct / Core</span>
+                    )}
+                  </TableCell>
                   <TableCell>{c.position}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`capitalize px-2 py-0.5 font-medium border shadow-none ${getStatusColor(c.contract_status || "pending")}`}>
+                    <Badge variant="outline" className={`capitalize px-2 py-0.5 font-medium ${getStatusColor(c.contract_status || "pending")}`}>
                       {getStatusLabel(c.contract_status || "pending")}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-slate-500 dark:text-slate-100/50 text-sm">
-                    {c.created_at ? format(new Date(c.created_at), "MMM d, yyyy") : "-"}
-                  </TableCell>
+                  {isAdmin && (
+                    <TableCell>
+                      <Select defaultValue={c.assigned_to?.toString()} onValueChange={(val) => handleAssign(c.id, val)}>
+                        <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 w-[140px]">
+                          <SelectValue placeholder="Unassigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {workers?.map((w: any) => (
+                            <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {(!c.signature_id && c.contract_status === 'pending') ? (
-                        <div className="flex gap-1">
-                          <Link href={`/dashboard/candidates/${c.id}`}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-slate-500 hover:text-primary"
-                              title={t("candidates.list.actions.view")}
-                            >
-                              <EyeIcon className="w-4 h-4 mr-2" />
-                              {t("candidates.list.actions.view")}
-                            </Button>
-                          </Link>
-                          <Link href={`/dashboard/candidates/${c.id}/sign`}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-primary hover:text-primary hover:bg-primary/10 dark:text-primary dark:hover:bg-primary/20"
-                            >
-                              <PenToolIcon className="w-4 h-4 mr-2" />
-                              {t("candidates.list.actions.sign")}
-                            </Button>
-                          </Link>
-                        </div>
-                      ) : (
-                        <Link href={`/dashboard/candidates/${c.id}`}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-slate-400 hover:text-primary dark:hover:text-primary"
-                            title={t("candidates.list.actions.view")}
-                          >
-                            <EyeIcon className="w-4 h-4" />
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
+                    <Link href={`/dashboard/candidates/${c.id}`}>
+                      <Button variant="ghost" size="sm" className="text-slate-500 hover:text-primary">
+                        <EyeIcon className="w-4 h-4 mr-2" />
+                        {t("candidates.list.actions.view")}
+                      </Button>
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 7 : 5} className="h-24 text-center text-muted-foreground">
                   {t("candidates.list.no_results")}
                 </TableCell>
               </TableRow>
@@ -232,7 +285,7 @@ export function CandidateList() {
           </TableBody>
         </Table>
       </div>
-      {/* Pagination */}
+
       {totalPages > 1 && (
         <div className="flex justify-end gap-2 mt-2">
           <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>{t("common.previous")}</Button>
@@ -242,6 +295,12 @@ export function CandidateList() {
           <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>{t("common.next")}</Button>
         </div>
       )}
+
+      <EmailEditorDialog
+        isOpen={isEmailOpen}
+        onClose={() => setIsEmailOpen(false)}
+        recipients={candidates.filter(c => selectedIds.includes(c.id)).map(c => c.email)}
+      />
     </div>
   )
 }

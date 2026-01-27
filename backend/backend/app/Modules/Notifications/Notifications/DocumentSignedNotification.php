@@ -16,7 +16,7 @@ class DocumentSignedNotification extends Notification implements ShouldQueue
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -26,6 +26,16 @@ class DocumentSignedNotification extends Notification implements ShouldQueue
             ->line('A document you own has been signed.')
             ->line('Document: '.$this->document->title)
             ->line('Signed by: '.$this->document->worker->name)
-            ->action('View Document', url('/documents/'.$this->document->id));
+            ->action('View Document', url('/dashboard/documents/'.$this->document->id));
+    }
+
+    public function toArray(object $notifiable): array
+    {
+        return [
+            'type' => 'document_signed',
+            'title' => 'Document Signed',
+            'message' => "The document '{$this->document->title}' has been signed by {$this->document->worker->name}.",
+            'document_id' => $this->document->id,
+        ];
     }
 }

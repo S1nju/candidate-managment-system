@@ -33,6 +33,7 @@ export const metadata: Metadata = {
 }
 
 import { LanguageProvider } from "@/context/language-context"
+import { SWRProvider } from "@/components/swr-provider"
 
 export default function RootLayout({
   children,
@@ -43,10 +44,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <LanguageProvider>
-            {children}
-            <Toaster />
-          </LanguageProvider>
+          <SWRProvider>
+            <LanguageProvider>
+              {children}
+              <Toaster />
+            </LanguageProvider>
+          </SWRProvider>
         </ThemeProvider>
         <Analytics />
       </body>

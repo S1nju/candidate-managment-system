@@ -22,7 +22,7 @@ class CandidateController extends Controller
             });
         }
         $perPage = (int) $request->query('per_page', 15);
-        $candidates = $query->orderByDesc('created_at')->paginate($perPage);
+        $candidates = $query->with('form')->orderByDesc('created_at')->paginate($perPage);
         return response()->json([
             'data' => $candidates->items(),
             'total' => $candidates->total(),
@@ -56,7 +56,7 @@ class CandidateController extends Controller
 
     public function show(Candidate $candidate): JsonResponse
     {
-        return response()->json($candidate->load('signature'));
+        return response()->json($candidate->load(['signature', 'form', 'assignedTo']));
     }
 
     public function update(Request $request, Candidate $candidate): JsonResponse
@@ -64,9 +64,42 @@ class CandidateController extends Controller
         $data = $request->validate([
             'signature_id' => 'nullable|exists:signatures,id',
             'status' => 'nullable|string',
-            // Add other fields if editable by admin
         ]);
         $candidate->update($data);
         return response()->json($candidate);
+    }
+
+    public function assign(Request $request, Candidate $candidate): JsonResponse
+    {
+        $validated = $request->validate([
+            'assigned_to' => 'nullable|exists:users,id',
+        ]);
+
+        $candidate->update(['assigned_to' => $validated['assigned_to']]);
+
+        return response()->json([
+            'message' => 'Candidate assigned successfully',
+            'candidate' => $candidate->load('assignedTo'),
+        ]);
+    }
+
+    public function generateMailtoLink(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'candidate_ids' => 'required|array',
+            'candidate_ids.*' => 'exists:candidates,id',
+        ]);
+
+        $candidates = Candidate::whereIn('id', $validated['candidate_ids'])->get();
+        $emails = $candidates->pluck('email')->unique()->implode(',');
+
+        $subject = rawurlencode('Regarding your application');
+        $body = rawurlencode("Hello,\n\nWe are reaching out to you regarding your application...");
+        
+        $mailtoLink = "mailto:?bcc={$emails}&subject={$subject}&body={$body}";
+
+        return response()->json([
+            'mailto_link' => $mailtoLink,
+        ]);
     }
 }

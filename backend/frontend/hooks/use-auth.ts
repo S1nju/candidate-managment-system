@@ -8,13 +8,10 @@ import { useRouter } from "next/navigation"
 export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: "guest" | "auth", redirectIfAuthenticated?: string } = {}) => {
   const router = useRouter()
 
-  const { data: user, error, mutate } = useSWR("/api/user", () =>
-    axios.get("/api/user").then((res) => res.data).catch((error) => {
-      if (error.response.status !== 409) throw error
-
-      router.push("/verify-email")
-    })
-  )
+  const { data: user, error, mutate } = useSWR("/api/user", null, {
+    revalidateOnFocus: false,
+    revalidateIfStale: false,
+  })
 
   const csrf = () => axios.get("/sanctum/csrf-cookie")
 
@@ -62,13 +59,17 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
     router.push("/login")
   }
 
+  const isLoading = !user && !error
+
   useEffect(() => {
     if (middleware === "guest" && redirectIfAuthenticated && user) router.push(redirectIfAuthenticated)
-    if (middleware === "auth" && error) logout()
-  }, [user, error])
+    // If auth is required and there is an error (unauthenticated), redirect to login directly
+    if (middleware === "auth" && error) router.push("/login")
+  }, [user, error, middleware, redirectIfAuthenticated, router])
 
   return {
     user,
+    isLoading,
     mutate,
     login,
     register,

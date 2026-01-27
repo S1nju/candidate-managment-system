@@ -1,0 +1,14 @@
+<?php
+
+use App\Http\Controllers\Modules\Forms\Http\Controllers\FormController;
+use App\Http\Controllers\Modules\Forms\Http\Controllers\PublicFormController;
+use Illuminate\Support\Facades\Route;
+
+// Admin routes - protected by auth
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('forms', FormController::class);
+});
+
+// Public routes - no authentication required
+Route::get('public/forms/{uuid}', [PublicFormController::class, 'show']);
+Route::post('public/forms/{uuid}/submit', [PublicFormController::class, 'submit']);

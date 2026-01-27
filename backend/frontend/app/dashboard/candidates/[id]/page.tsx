@@ -16,11 +16,17 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { format } from "date-fns"
 import { useLanguage } from "@/context/language-context"
+import { EmailEditorDialog } from "@/components/candidates/email-editor-dialog"
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { t } = useLanguage();
-  const { data: candidate, error, isLoading } = useSWR(`/api/candidates/${id}`, () => axios.get(`/api/candidates/${id}`).then(res => res.data))
+  const [isEmailOpen, setIsEmailOpen] = useState(false)
+  const { data: candidate, error, isLoading } = useSWR(`/api/candidates/${id}`)
+
+  const { data: kycData, isLoading: kycLoading } = useSWR(
+    candidate?.didit_session_id ? `/api/candidates/didit-decision/${candidate.didit_session_id}` : null
+  )
 
   if (isLoading) {
     return <div className="p-8 space-y-4">
@@ -53,9 +59,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </Badge>
           </div>
           <p className="text-muted-foreground mt-1 flex items-center gap-2">
-            <Briefcase className="w-4 h-4" /> {candidate.position}
+            <Briefcase className="w-4 h-4" /> {candidate.position || "No position specified"}
             <span className="text-slate-300">|</span>
-            {candidate.contract_type}
+            {candidate.contract_type || "No contract type"}
+            {candidate.form && (
+              <>
+                <span className="text-slate-300">|</span>
+                <Badge variant="outline" className="font-normal border-blue-200 text-blue-700 bg-blue-50">
+                  Form: {candidate.form.title}
+                </Badge>
+              </>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
@@ -74,8 +88,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               </Button>
             </Link>
           )}
+          <Button variant="outline" onClick={() => setIsEmailOpen(true)}>
+            <Mail className="w-4 h-4 mr-2" />
+            Email Candidate
+          </Button>
         </div>
       </div>
+
+      <EmailEditorDialog
+        isOpen={isEmailOpen}
+        onClose={() => setIsEmailOpen(false)}
+        recipients={[candidate.email]}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Personal Info */}
@@ -109,6 +133,27 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               <InfoItem label={t("candidates.detail.labels.product")} value={candidate.product_justcost} />
             </CardContent>
           </Card>
+
+          {candidate.data && Object.keys(candidate.data).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-500" /> Dynamic Form Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(candidate.data).map(([key, value]) => {
+                    if (['name', 'email', 'phone', 'dob'].includes(key)) return null;
+                    return (
+                      <div key={key} className="border-b pb-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">{key.replace(/_/g, ' ')}</p>
+                        <p className="text-sm font-semibold">{String(value)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Column: Candidate Details */}
@@ -118,16 +163,72 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><UserIcon className="w-5 h-5 text-purple-500" /> Photo</CardTitle>
             </CardHeader>
-            <CardContent className="flex justify-center">
-              {candidate.photo_url ? (
-                <img src={candidate.photo_url} alt={candidate.name} className="w-48 h-48 object-cover rounded-lg border-2 border-slate-200 dark:border-slate-700" />
+            <CardContent className="flex flex-col items-center gap-4">
+              {kycLoading ? (
+                <Skeleton className="w-48 h-48 rounded-lg" />
+              ) : kycData?.id_verifications?.[0]?.portrait_image || candidate.photo_url ? (
+                <img
+                  src={kycData?.id_verifications?.[0]?.portrait_image || candidate.photo_url}
+                  alt={candidate.name}
+                  className="w-48 h-48 object-cover rounded-lg border-2 border-slate-200 dark:border-slate-700 shadow-sm"
+                />
               ) : (
                 <div className="w-48 h-48 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
                   <UserIcon className="w-24 h-24 text-slate-400" />
                 </div>
               )}
+              {kycData?.id_verifications?.[0]?.document_type && (
+                <p className="text-xs font-medium text-muted-foreground bg-slate-100 px-2 py-1 rounded">
+                  Verified via {kycData.id_verifications[0].document_type}
+                </p>
+              )}
             </CardContent>
           </Card>
+
+          {/* ID Documents (from Didit) */}
+          {kycData?.id_verifications?.[0] && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm"><FileText className="w-4 h-4 text-blue-500" /> Identification Documents</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Front Image</p>
+                    <img src={kycData.id_verifications[0].front_image} className="w-full rounded border cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(kycData.id_verifications[0].front_image, '_blank')} />
+                  </div>
+                  {kycData.id_verifications[0].back_image && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase text-muted-foreground font-bold">Back Image</p>
+                      <img src={kycData.id_verifications[0].back_image} className="w-full rounded border cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(kycData.id_verifications[0].back_image, '_blank')} />
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-xs">
+                  <div className="flex justify-between border-b py-1">
+                    <span className="text-muted-foreground">ID Number</span>
+                    <span className="font-semibold">{kycData.id_verifications[0].document_number}</span>
+                  </div>
+                  <div className="flex justify-between border-b py-1">
+                    <span className="text-muted-foreground">Nationality</span>
+                    <span className="font-semibold">{kycData.id_verifications[0].nationality}</span>
+                  </div>
+                  <div className="flex justify-between border-b py-1">
+                    <span className="text-muted-foreground">Issuing State</span>
+                    <span className="font-semibold">{kycData.id_verifications[0].issuing_state_name}</span>
+                  </div>
+                  <div className="flex justify-between border-b py-1">
+                    <span className="text-muted-foreground">Date of Birth</span>
+                    <span className="font-semibold">{kycData.id_verifications[0].date_of_birth}</span>
+                  </div>
+                  <div className="flex justify-between border-b py-1">
+                    <span className="text-muted-foreground">Address</span>
+                    <span className="font-semibold text-right max-w-[200px]">{kycData.id_verifications[0].formatted_address || kycData.id_verifications[0].address}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Skills Card */}
           <Card>
