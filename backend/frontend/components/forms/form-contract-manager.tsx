@@ -184,7 +184,7 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
 
             {editingContract && (
                 <ContractLayoutEditor
-                    fileUrl={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${editingContract.id}/template`}
+                    fileUrl={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${editingContract.id}/template`.replace('//api', '/api')}
                     mappings={editingContract.placeholders}
                     onSave={handleLayoutSave}
                     onClose={() => setEditingContract(null)}
