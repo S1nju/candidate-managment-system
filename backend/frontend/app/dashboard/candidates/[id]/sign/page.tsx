@@ -282,13 +282,13 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           {!loadingContract && pdfUrl && (
             <PDFViewer fileUrl={pdfUrl} onPageChange={setCurrentPage}>
               {!isSigned && placeholders.map((p, idx) => (
-                p.position.page === currentPage && (
+                p.position?.page === currentPage && (
                   <div
                     key={`p-${idx}`}
                     className="absolute text-[12px] font-bold text-slate-800 whitespace-nowrap pointer-events-none"
                     style={{
-                      left: `${p.position.x}%`,
-                      top: `${p.position.y}%`,
+                      left: `${p.position?.x}%`,
+                      top: `${p.position?.y}%`,
                       transform: 'translate(-50%, -50%)'
                     }}
                   >
@@ -297,11 +297,11 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                 )
               ))}
               {signatures.map((sig, idx) => (
-                sig.placement.page === currentPage && (
+                sig.placement?.page === currentPage && (
                   <div
                     key={`s-${idx}`}
                     className={`absolute border-4 border-emerald-500 border-dashed p-2 group z-50 ${draggingSignatureIdx === idx ? "cursor-grabbing ring-4 ring-emerald-500/80 bg-emerald-100/60" : isSigned ? "cursor-default" : "cursor-move"}`}
-                    style={{ left: `${sig.placement.x}%`, top: `${sig.placement.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none', pointerEvents: isSigned ? 'none' : 'auto' }}
+                    style={{ left: `${sig.placement?.x}%`, top: `${sig.placement?.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none', pointerEvents: isSigned ? 'none' : 'auto' }}
                     onMouseDown={e => { if (!isSigned) { e.preventDefault(); setDraggingSignatureIdx(idx); } }}
                   >
                     {sig.value ? (
