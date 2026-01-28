@@ -4,7 +4,7 @@ import useSWR from "swr"
 import axios from "@/lib/axios"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-
+import Cookies from "js-cookie"
 export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: "guest" | "auth", redirectIfAuthenticated?: string } = {}) => {
   const router = useRouter()
 
@@ -53,10 +53,16 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
 
   const logout = async () => {
     if (!error) {
-      await axios.post("/api/logout").then(() => mutate())
+      await axios.post("/api/logout").then(() => {
+        Cookies.remove("XSRF-TOKEN")
+        Cookies.remove("laravel_session")
+
+        mutate()
+        window.location.href = "/login"
+      })
     }
 
-    router.push("/login")
+
   }
 
   const isLoading = !user && !error

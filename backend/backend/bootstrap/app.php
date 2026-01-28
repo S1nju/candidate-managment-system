@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->trustProxies(at: '*');
+        $middleware->api(append: [
+            \App\Http\Middleware\ForcePasswordReset::class,
+        ]);
         
         $middleware->redirectTo(
             guests: fn () => response()->json(['message' => 'Unauthenticated.'], 401)
@@ -22,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
+            'force_password_reset' => \App\Http\Middleware\ForcePasswordReset::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,

@@ -153,6 +153,6 @@ export function DashboardSidebar() {
         <LanguageSwitcher />
         <UserNav />
       </SidebarFooter>
-    </Sidebar>
+    </Sidebar >
   )
 }

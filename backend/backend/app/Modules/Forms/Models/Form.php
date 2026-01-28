@@ -1,7 +1,6 @@
 <?php
 
-namespace App\Models\Modules\Forms\Models;
-
+namespace App\Modules\Forms\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -45,8 +44,8 @@ class Form extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function candidates(): HasMany
+    public function contracts(): HasMany
     {
-        return $this->hasMany(\App\Modules\Candidates\Models\Candidate::class);
+        return $this->hasMany(FormContract::class)->orderBy('order');
     }
 }

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Modules\Forms\Http\Controllers;
+namespace App\Modules\Forms\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Modules\Forms\Models\Form;
+use App\Modules\Forms\Models\Form;
 use App\Modules\Candidates\Models\Candidate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -30,7 +30,7 @@ class PublicFormController extends Controller
     /**
      * Submit a public form
      */
-    public function submit(Request $request, string $uuid)
+    public function submit(Request $request, string $uuid, \App\Modules\Forms\Services\ContractGenerationService $contractService)
     {
         $form = Form::with('fields')
             ->where('uuid', $uuid)
@@ -63,10 +63,13 @@ class PublicFormController extends Controller
             // Add type-specific validation
             if ($field->type === 'email') {
                 $fieldRules[] = 'email';
+                $fieldRules[] = 'string';
             } elseif ($field->type === 'number') {
                 $fieldRules[] = 'numeric';
             } elseif ($field->type === 'file') {
                 $fieldRules[] = 'file';
+            } elseif (in_array($field->type, ['text', 'textarea'])) {
+                $fieldRules[] = 'string';
             }
 
             $rules['fields.' . $field->name] = $fieldRules;
@@ -81,27 +84,40 @@ class PublicFormController extends Controller
             ], 422);
         }
 
-        $fields = $request->input('fields', []);
+        $fieldsData = $request->input('fields', []);
+
+        // Handle file uploads
+        foreach ($form->fields as $field) {
+            if ($field->type === 'file' && $request->hasFile('fields.' . $field->name)) {
+                $file = $request->file('fields.' . $field->name);
+                $path = $file->store('form_uploads', 'secure');
+                $fieldsData[$field->name] = [
+                    'path' => $path,
+                    'name' => $file->getClientOriginalName(),
+                    'type' => $file->getClientMimeType(),
+                ];
+            }
+        }
 
         $candidateData = [
             'form_id' => $form->id,
-            'name' => $fields['name'] ?? $fields['full_name'] ?? 'Unknown',
-            'email' => $fields['email'],
-            'phone' => $fields['phone'] ?? null,
-            'position' => $fields['position'] ?? null,
-            'gender' => $fields['gender'] ?? null,
-            'nationality' => $fields['nationality'] ?? null,
-            'dob' => $fields['dob'] ?? null,
-            'address' => $fields['address'] ?? null,
-            'social_security_number' => $fields['social_security_number'] ?? $fields['ssn'] ?? null,
-            'emergency_phone' => $fields['emergency_phone'] ?? null,
-            'recruitment_city' => $fields['recruitment_city'] ?? null,
-            'animator_name' => $fields['animator_name'] ?? null,
-            'product_justcost' => $fields['product_justcost'] ?? null,
-            'contract_type' => $fields['contract_type'] ?? null,
-            'start_date' => $fields['start_date'] ?? null,
+            'name' => $fieldsData['name'] ?? $fieldsData['full_name'] ?? 'Unknown',
+            'email' => $fieldsData['email'],
+            'phone' => $fieldsData['phone'] ?? null,
+            'position' => $fieldsData['position'] ?? null,
+            'gender' => $fieldsData['gender'] ?? null,
+            'nationality' => $fieldsData['nationality'] ?? null,
+            'dob' => $fieldsData['dob'] ?? null,
+            'address' => $fieldsData['address'] ?? null,
+            'social_security_number' => $fieldsData['social_security_number'] ?? $fieldsData['ssn'] ?? null,
+            'emergency_phone' => $fieldsData['emergency_phone'] ?? null,
+            'recruitment_city' => $fieldsData['recruitment_city'] ?? null,
+            'animator_name' => $fieldsData['animator_name'] ?? null,
+            'product_justcost' => $fieldsData['product_justcost'] ?? null,
+            'contract_type' => $fieldsData['contract_type'] ?? null,
+            'start_date' => $fieldsData['start_date'] ?? null,
             'contract_status' => 'pending',
-            'data' => $fields, // Store all form data as JSON
+            'data' => $fieldsData, // Store all form data as JSON
         ];
 
         // If KYC is enabled, return redirect URL
@@ -126,6 +142,9 @@ class PublicFormController extends Controller
 
         // Create candidate immediately if KYC is disabled
         $candidate = Candidate::create($candidateData);
+
+        // Generate contracts automatically
+        $contractService->generateForCandidate($candidate);
 
         return response()->json([
             'message' => 'Form submitted successfully',

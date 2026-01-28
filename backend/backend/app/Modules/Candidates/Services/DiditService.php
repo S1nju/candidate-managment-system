@@ -2,7 +2,7 @@
 
 namespace App\Modules\Candidates\Services;
 
-use App\Models\CandidateVerification;
+use App\Modules\Candidates\Models\CandidateVerification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 

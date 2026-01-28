@@ -2,48 +2,52 @@
 namespace App\Modules\Candidates\Http\Controllers;
 
 use App\Modules\Candidates\Models\Candidate;
-use App\Services\ContractGeneratorService;
 use App\Modules\Candidates\Services\CandidateSigningService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
-
 use App\Modules\Audit\Services\AuditService;
 
 class ContractController extends Controller
 {
     public function __construct(
-        protected ContractGeneratorService $generatorService,
+        protected \App\Modules\Forms\Services\ContractGenerationService $generatorService,
         protected CandidateSigningService $signingService,
         protected AuditService $auditService
     ) {}
 
     public function generate(Candidate $candidate): JsonResponse
     {
-        // Check if signed contract exists
-        if ($candidate->contract_status === 'signed' && $candidate->contract_path) {
-            $signedPath = storage_path('app/secure/contracts/signed/' . basename($candidate->contract_path));
-            if (file_exists($signedPath)) {
-                return response()->json(['file' => 'contracts/signed/' . basename($candidate->contract_path)]);
-            }
+        // If already signed, return the signed contract
+        if (($candidate->contract_status === 'signed' || $candidate->contract_path) && $candidate->contract_path) {
+            return response()->json([
+                'file' => $candidate->contract_path,
+                'is_signed' => true
+            ]);
+        }
+        
+        $candidate->load('form.contracts');
+        
+        if (!$candidate->form || $candidate->form->contracts->isEmpty()) {
+            return response()->json(['message' => 'No contracts available for this candidate'], 404);
         }
 
-        // Check if unsigned contract already exists
-        if ($candidate->contract_path) {
-            $existingPath = storage_path('app/secure/' . $candidate->contract_path);
-            if (file_exists($existingPath)) {
-                return response()->json(['file' => $candidate->contract_path]);
-            }
+        $previewData = $this->generatorService->getCandidateDataWithPlaceholders($candidate);
+        
+        if (empty($previewData)) {
+            return response()->json(['message' => 'Failed to resolve contract data'], 404);
         }
 
-        // Generate new contract
-        $filename = $this->generatorService->generate($candidate);
-        
-        // Save the path to database
-        $candidate->update(['contract_path' => $filename]);
-        
-        return response()->json(['file' => $filename]);
+        // For now, support one contract per candidate in the signing UI
+        $first = $previewData[0];
+
+        return response()->json([
+            'file' => $first['template_path'],
+            'preview_data' => $first['data'],
+            'placeholders' => $first['placeholders'],
+            'is_signed' => false
+        ]);
     }
 
     public function sign(Request $request, Candidate $candidate): JsonResponse
@@ -57,9 +61,9 @@ class ContractController extends Controller
             'user_agent' => 'nullable|string',
         ]);
 
-        $signature = $this->signingService->signContract($candidate, $request->user(), $data);
+        $this->signingService->signContract($candidate, $request->user(), $data);
 
-        return response()->json($signature);
+        return response()->json(['message' => 'Contract signed successfully']);
     }
 
     public function reject(Request $request, Candidate $candidate): JsonResponse
@@ -84,30 +88,26 @@ class ContractController extends Controller
         return response()->json(['message' => 'Contract rejected successfully', 'candidate' => $candidate]);
     }
 
-    public function download($filename)
+    public function download($id)
     {
-        // Aggressively clean the filename input from any hidden characters
-        $filename = str_replace(["\r", "\n", "\t", "\0", "\x0B"], '', trim($filename));
-        $filename = str_replace('contracts/', '', $filename);
+        // Check if it's an ID (numeric) or a path
+        if (is_numeric($id)) {
+            $generated = \App\Modules\Forms\Models\GeneratedContract::findOrFail($id);
+            $path = $generated->file_path;
+        } else {
+            // Assume it's a relative path from secure disk
+            $path = rawurldecode($id); 
+            // In case of any weird encoding, ensure it's clean
+            $path = ltrim($path, '/');
+        }
         
-        // Build the full path
-        $path = storage_path('app/secure/contracts/' . $filename);
-        
-        if (!file_exists($path)) {
-            return response()->json(['message' => 'File not found'], 404);
+        \Illuminate\Support\Facades\Log::info("Contract download request for path: " . $path);
+
+        if (!Storage::disk('secure')->exists($path)) {
+            \Illuminate\Support\Facades\Log::error("File not found on secure disk: " . $path);
+            abort(404, 'File not found: ' . $path);
         }
 
-        // Generate a safe display name for the download
-        $displayName = basename($filename);
-        $displayName = str_replace(["\r", "\n", "\t", "\0", "\x0B"], '', $displayName);
-        $displayName = preg_replace('/[^A-Za-z0-9\._-]/', '_', $displayName);
-
-        // Clear any output buffer that might have stray newlines
-        if (ob_get_length()) ob_end_clean();
-
-        // use download() which handles headers more safely
-        return response()->download($path, $displayName, [
-            'Content-Type' => 'application/pdf',
-        ]);
+        return Storage::disk('secure')->download($path, basename($path));
     }
 }

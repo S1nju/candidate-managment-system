@@ -76,6 +76,8 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
   const [contractFile, setContractFile] = useState<string | null>(null)
   const [loadingContract, setLoadingContract] = useState(false)
+  const [previewData, setPreviewData] = useState<Record<string, string>>({})
+  const [placeholders, setPlaceholders] = useState<any[]>([])
 
   // Generate/Get contract on load
   useEffect(() => {
@@ -83,15 +85,13 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
       setLoadingContract(true)
       try {
         const res = await axios.post(`/api/candidates/${id}/generate-contract`)
-        let file = res.data.file;
-        if (file.startsWith('contracts/')) {
-          file = file.replace('contracts/', '');
-        }
+        const { is_signed: isSigned, file: filePath, preview_data, placeholders } = res.data
 
-        // Fetch as blob
-        const pdfRes = await axios.get(`/api/contracts/${file}`, { responseType: 'blob' })
-        const blobUrl = URL.createObjectURL(pdfRes.data)
-        setContractFile(blobUrl)
+        setPreviewData(preview_data || {})
+        setPlaceholders(placeholders || [])
+
+        const downloadUrl = `${axios.defaults.baseURL}/api/contracts/${encodeURIComponent(filePath)}`
+        setContractFile(downloadUrl)
       } catch (err) {
         console.error("Failed to get contract", err)
         toast({ title: "Error", description: "Could not load contract", variant: "destructive" })
@@ -281,10 +281,25 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
           {!loadingContract && pdfUrl && (
             <PDFViewer fileUrl={pdfUrl} onPageChange={setCurrentPage}>
+              {!isSigned && placeholders.map((p, idx) => (
+                p.position.page === currentPage && (
+                  <div
+                    key={`p-${idx}`}
+                    className="absolute text-[12px] font-bold text-slate-800 whitespace-nowrap pointer-events-none"
+                    style={{
+                      left: `${p.position.x}%`,
+                      top: `${p.position.y}%`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    {previewData[p.placeholder] || ""}
+                  </div>
+                )
+              ))}
               {signatures.map((sig, idx) => (
                 sig.placement.page === currentPage && (
                   <div
-                    key={idx}
+                    key={`s-${idx}`}
                     className={`absolute border-4 border-emerald-500 border-dashed p-2 group z-50 ${draggingSignatureIdx === idx ? "cursor-grabbing ring-4 ring-emerald-500/80 bg-emerald-100/60" : isSigned ? "cursor-default" : "cursor-move"}`}
                     style={{ left: `${sig.placement.x}%`, top: `${sig.placement.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none', pointerEvents: isSigned ? 'none' : 'auto' }}
                     onMouseDown={e => { if (!isSigned) { e.preventDefault(); setDraggingSignatureIdx(idx); } }}

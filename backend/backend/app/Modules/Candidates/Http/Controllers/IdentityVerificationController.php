@@ -3,7 +3,7 @@
 namespace App\Modules\Candidates\Http\Controllers;
  
 use App\Http\Controllers\Controller;
-use App\Models\CandidateVerification;
+use App\Modules\Candidates\Models\CandidateVerification;
 use App\Modules\Candidates\Models\Candidate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -135,7 +135,10 @@ class IdentityVerificationController extends Controller
 
                 $candidate = Candidate::create($candidateData);
                 $verification->update(['status' => 'approved']);
- 
+
+                // Generate contracts automatically
+                app(\App\Modules\Forms\Services\ContractGenerationService::class)->generateForCandidate($candidate);
+
                 // Redirect to frontend success page
                 return redirect(config('app.frontend_url', 'http://localhost:3000') . '/candidate/apply/success?session_id=' . $sessionId);
             }

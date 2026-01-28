@@ -55,11 +55,16 @@ class Candidate extends Model
 
     public function form()
     {
-        return $this->belongsTo(\App\Models\Modules\Forms\Models\Form::class);
+        return $this->belongsTo(\App\Modules\Forms\Models\Form::class);
     }
 
     public function assignedTo()
     {
         return $this->belongsTo(\App\Models\User::class, 'assigned_to');
+    }
+
+    public function generatedContracts()
+    {
+        return $this->hasMany(\App\Modules\Forms\Models\GeneratedContract::class);
     }
 }

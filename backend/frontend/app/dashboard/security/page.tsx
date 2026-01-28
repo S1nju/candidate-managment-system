@@ -28,6 +28,27 @@ import { Shield, User as UserIcon, ShieldAlert } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { Label } from "@/components/ui/label"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import {
+    MoreHorizontal,
+    Key,
+    Trash2,
+    RotateCcw,
+    ShieldCheck,
+    CheckCircle2,
+    XCircle,
+    Plus,
+    Loader2
+} from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function SecurityPage() {
     const { user: currentUser } = useAuth({ middleware: "auth" })
@@ -39,40 +60,87 @@ export default function SecurityPage() {
     const [isUpdating, setIsUpdating] = useState(false)
     const [isCreatingUser, setIsCreatingUser] = useState(false)
 
+    // Reset Password States
+    const [resetDialogOpen, setResetDialogOpen] = useState(false)
+    const [userToReset, setUserToReset] = useState<any>(null)
+    const [newPassword, setNewPassword] = useState("")
+    const [forceReset, setForceReset] = useState(true)
+    const [isResetting, setIsResetting] = useState(false)
+
     const isAdmin = currentUser?.roles?.some((r: any) => r.name === 'admin')
 
-    const { data: usersResponse, isLoading: isLoadingUsers } = useSWR(
-        isAdmin ? "/api/users" : null,
-        () => axios.get("/api/users").then((res) => res.data)
+    const { data: usersResponse, isLoading: isLoadingUsers, mutate: mutateUsers } = useSWR(
+        isAdmin ? "/api/admin/users" : null,
+        () => axios.get("/api/admin/users").then((res) => res.data)
     )
 
     const { data: roles } = useSWR(
-        isAdmin ? "/api/roles" : null,
-        () => axios.get("/api/roles").then((res) => res.data)
+        isAdmin ? "/api/admin/roles" : null,
+        () => axios.get("/api/admin/roles").then((res) => res.data)
     )
 
-    const users = usersResponse?.data || []
+    const users = usersResponse || []
 
     const handleEdit = (user: any) => {
-        setEditingUser(user)
+        setEditingUser({ ...user })
         setSelectedRoles(user.roles.map((r: any) => r.name))
     }
 
-    const handleUpdateRoles = async () => {
+    const handleUpdateUser = async () => {
         setIsUpdating(true)
         try {
-            await axios.put(`/api/users/${editingUser.id}`, {
+            await axios.put(`/api/admin/users/${editingUser.id}`, {
                 name: editingUser.name,
                 email: editingUser.email,
                 roles: selectedRoles
             })
-            toast({ title: "Success", description: "User roles updated successfully" })
-            mutate("/api/users")
+            toast({ title: "Success", description: "User updated successfully" })
+            mutateUsers()
             setEditingUser(null)
         } catch (err) {
-            toast({ title: "Error", description: "Failed to update roles", variant: "destructive" })
+            toast({ title: "Error", description: "Failed to update user", variant: "destructive" })
         } finally {
             setIsUpdating(false)
+        }
+    }
+
+    const handleDeleteUser = async (user: any) => {
+        if (!confirm(`Are you sure you want to delete ${user.name}?`)) return
+        try {
+            await axios.delete(`/api/admin/users/${user.id}`)
+            toast({ title: "User deleted (soft delete)" })
+            mutateUsers()
+        } catch (error) {
+            toast({ title: "Deletion failed", variant: "destructive" })
+        }
+    }
+
+    const handleRestoreUser = async (user: any) => {
+        try {
+            await axios.post(`/api/admin/users/${user.id}/restore`)
+            toast({ title: "User restored" })
+            mutateUsers()
+        } catch (error) {
+            toast({ title: "Restoration failed", variant: "destructive" })
+        }
+    }
+
+    const handleResetPassword = async () => {
+        if (!userToReset || !newPassword) return
+        setIsResetting(true)
+        try {
+            await axios.post(`/api/admin/users/${userToReset.id}/reset-password`, {
+                password: newPassword,
+                force_reset: forceReset
+            })
+            toast({ title: "Password reset successful" })
+            setResetDialogOpen(false)
+            setNewPassword("")
+            mutateUsers()
+        } catch (error) {
+            toast({ title: "Failed to reset password", variant: "destructive" })
+        } finally {
+            setIsResetting(false)
         }
     }
 
@@ -124,30 +192,103 @@ export default function SecurityPage() {
                                         <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                                     </TableRow>
                                 ))
-                            ) : users.map((u: any) => (
-                                <TableRow key={u.id} className="hover:bg-muted/30 transition-colors border-slate-200 dark:border-slate-800">
-                                    <TableCell className="font-medium text-slate-900 dark:text-slate-100">{u.name}</TableCell>
-                                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-wrap gap-1">
-                                            {u.roles?.map((r: any) => (
-                                                <Badge key={r.id} variant={r.name === 'admin' ? "destructive" : "secondary"} className="text-[10px] py-0 px-2">
-                                                    {r.name}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => handleEdit(u)}>
-                                            Manage
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            ) : (
+                                users.map((u: any) => (
+                                    <TableRow key={u.id} className={`${u.deleted_at ? "bg-slate-50 opacity-60" : ""} hover:bg-muted/30 transition-colors border-slate-200 dark:border-slate-800`}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <div className="font-medium text-slate-900 dark:text-slate-100">{u.name}</div>
+                                                {u.deleted_at && <Badge variant="destructive" className="text-[8px] h-3 px-1 uppercase">Deleted</Badge>}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                                {u.roles?.map((r: any) => (
+                                                    <Badge key={r.id} variant={r.name === 'admin' ? "destructive" : "secondary"} className="text-[10px] py-0 px-2">
+                                                        {r.name}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuItem onClick={() => handleEdit(u)}>
+                                                        <UserIcon className="mr-2 h-4 w-4" /> View / Edit
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => {
+                                                        setUserToReset(u);
+                                                        setResetDialogOpen(true);
+                                                    }}>
+                                                        <Key className="mr-2 h-4 w-4" /> Reset Password
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    {u.deleted_at ? (
+                                                        <DropdownMenuItem className="text-emerald-600" onClick={() => handleRestoreUser(u)}>
+                                                            <RotateCcw className="mr-2 h-4 w-4" /> Restore User
+                                                        </DropdownMenuItem>
+                                                    ) : (
+                                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteUser(u)}>
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete User
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </div>
             </div>
+
+            {/* Reset Password Dialog */}
+            <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Reset Password</DialogTitle>
+                        <DialogDescription>
+                            Set a new password for {userToReset?.name}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="password">New Password</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="force-reset"
+                                checked={forceReset}
+                                onCheckedChange={(checked: any) => setForceReset(checked)}
+                            />
+                            <Label htmlFor="force-reset" className="text-sm font-normal">
+                                Force password reset on next login
+                            </Label>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setResetDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleResetPassword} disabled={isResetting || !newPassword}>
+                            {isResetting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
+                            Reset Password
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Edit User Dialog */}
             <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
@@ -160,7 +301,24 @@ export default function SecurityPage() {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        <div className="font-semibold text-sm flex items-center gap-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="edit-name">Name</Label>
+                            <Input
+                                id="edit-name"
+                                value={editingUser?.name || ""}
+                                onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="edit-email">Email</Label>
+                            <Input
+                                id="edit-email"
+                                type="email"
+                                value={editingUser?.email || ""}
+                                onChange={e => setEditingUser({ ...editingUser, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="font-semibold text-sm flex items-center gap-2 pt-2">
                             <Shield className="w-4 h-4 text-primary" /> Roles
                         </div>
                         <div className="grid grid-cols-1 gap-4">
@@ -198,7 +356,7 @@ export default function SecurityPage() {
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
-                        <Button onClick={handleUpdateRoles} disabled={isUpdating}>
+                        <Button onClick={handleUpdateUser} disabled={isUpdating}>
                             {isUpdating ? "Saving..." : "Save Changes"}
                         </Button>
                     </DialogFooter>
@@ -209,10 +367,10 @@ export default function SecurityPage() {
             <CreateUserDialog
                 open={isCreatingUser}
                 onOpenChange={setIsCreatingUser}
-                onSuccess={() => mutate("/api/users")}
+                onSuccess={() => mutateUsers()}
                 roles={roles}
             />
-        </div>
+        </div >
     )
 }
 
@@ -230,7 +388,7 @@ function CreateUserDialog({ open, onOpenChange, onSuccess, roles }: any) {
         e.preventDefault()
         setIsLoading(true)
         try {
-            await axios.post("/api/users", formData)
+            await axios.post("/api/admin/users", formData)
             toast({ title: "Success", description: "User created successfully" })
             setFormData({ name: "", email: "", password: "", roles: [] })
             onOpenChange(false)

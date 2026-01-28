@@ -10,8 +10,10 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormBuilder, FormField } from "@/components/forms/form-builder"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout } from "lucide-react"
 import Link from "next/link"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FormContractManager } from "@/components/forms/form-contract-manager"
 
 export default function EditFormPage() {
     const router = useRouter()
@@ -111,57 +113,76 @@ export default function EditFormPage() {
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-lg shadow-sm border">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="title">Form Title</Label>
-                            <Input
-                                id="title"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                            />
-                        </div>
+            <Tabs defaultValue="fields" className="space-y-6">
+                <TabsList className="bg-white border w-full justify-start h-12 p-1">
+                    <TabsTrigger value="fields" className="h-full px-6 flex items-center gap-2">
+                        <Layout className="h-4 w-4" />
+                        Form Fields
+                    </TabsTrigger>
+                    <TabsTrigger value="contracts" className="h-full px-6 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Contract Automation
+                    </TabsTrigger>
+                </TabsList>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="description">Description (Optional)</Label>
-                            <Textarea
-                                id="description"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                            />
-                        </div>
-                    </div>
+                <TabsContent value="fields" className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-lg shadow-sm border">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="title">Form Title</Label>
+                                    <Input
+                                        id="title"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                    />
+                                </div>
 
-                    <div className="space-y-6 flex flex-col justify-between">
-                        <div className="space-y-2">
-                            <Label htmlFor="status">Form Status</Label>
-                            <Select value={status} onValueChange={(val) => setStatus(val)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="draft">Draft</SelectItem>
-                                    <SelectItem value="active">Active (Visible to public)</SelectItem>
-                                    <SelectItem value="disabled">Disabled</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
-                            <div className="space-y-0.5">
-                                <Label className="text-base">Require Identity Verification (KYC)</Label>
-                                <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Description (Optional)</Label>
+                                    <Textarea
+                                        id="description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                    />
+                                </div>
                             </div>
-                            <Switch checked={kycEnabled} onCheckedChange={setKycEnabled} />
+
+                            <div className="space-y-6 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                    <Label htmlFor="status">Form Status</Label>
+                                    <Select value={status} onValueChange={(val) => setStatus(val)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="draft">Draft</SelectItem>
+                                            <SelectItem value="active">Active (Visible to public)</SelectItem>
+                                            <SelectItem value="disabled">Disabled</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
+                                    <div className="space-y-0.5">
+                                        <Label className="text-base">Require Identity Verification (KYC)</Label>
+                                        <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
+                                    </div>
+                                    <Switch checked={kycEnabled} onCheckedChange={setKycEnabled} />
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <hr />
+                        <hr />
 
-                <FormBuilder initialFields={fields} onChange={setFields} />
-            </form>
+                        <FormBuilder initialFields={fields} onChange={setFields} />
+                    </form>
+                </TabsContent>
+
+                <TabsContent value="contracts" className="bg-white p-8 rounded-lg shadow-sm border">
+                    <FormContractManager formId={id as string} fields={fields} />
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

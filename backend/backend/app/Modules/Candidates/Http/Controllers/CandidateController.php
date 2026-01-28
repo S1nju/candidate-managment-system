@@ -36,14 +36,14 @@ class CandidateController extends Controller
         $data = $request->validated();
 
         if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('candidates/photos', 'public');
-            $data['photo_url'] = '/storage/' . $path;
+            $path = $request->file('photo')->store('candidates/photos', 'secure');
+            $data['photo_url'] = $path;
             unset($data['photo']); // Remove file object from data
         }
 
         if ($request->hasFile('cv')) {
-             $path = $request->file('cv')->store('candidates/cvs', 'public');
-             $data['cv_url'] = '/storage/' . $path;
+             $path = $request->file('cv')->store('candidates/cvs', 'secure');
+             $data['cv_url'] = $path;
              unset($data['cv']);
         }
         
@@ -56,17 +56,43 @@ class CandidateController extends Controller
 
     public function show(Candidate $candidate): JsonResponse
     {
-        return response()->json($candidate->load(['signature', 'form', 'assignedTo']));
+        return response()->json($candidate->load(['signature', 'form.contracts', 'assignedTo', 'generatedContracts']));
     }
 
     public function update(Request $request, Candidate $candidate): JsonResponse
     {
-        $data = $request->validate([
-            'signature_id' => 'nullable|exists:signatures,id',
-            'status' => 'nullable|string',
-        ]);
-        $candidate->update($data);
-        return response()->json($candidate);
+        try {
+            $data = $request->validate([
+                'name' => 'nullable|string|max:255',
+                'email' => 'nullable|email|unique:candidates,email,' . $candidate->id,
+                'phone' => 'nullable|string|max:50',
+                'dob' => 'nullable|date',
+                'nationality' => 'nullable|string|max:100',
+                'address' => 'nullable|string|max:1000',
+                'social_security_number' => 'nullable|string|max:50',
+                'emergency_phone' => 'nullable|string|max:50',
+                'position' => 'nullable|string|max:255',
+                'contract_type' => 'nullable|string|max:100',
+                'start_date' => 'nullable|date',
+                'recruitment_city' => 'nullable|string|max:255',
+                'animator_name' => 'nullable|string|max:255',
+                'product_justcost' => 'nullable|string|max:255',
+                'gender' => 'nullable|string|max:100',
+                'status' => 'nullable|string',
+                'signature_id' => 'nullable|exists:signatures,id',
+            ]);
+
+            $candidate->update($data);
+            \Illuminate\Support\Facades\Log::info("Candidate updated: " . $candidate->id);
+
+            return response()->json($candidate);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+             \Illuminate\Support\Facades\Log::error("Candidate update validation failed: " . json_encode($e->errors()));
+             throw $e;
+        } catch (\Exception $e) {
+             \Illuminate\Support\Facades\Log::error("Candidate update error: " . $e->getMessage());
+             return response()->json(['message' => $e->getMessage()], 500);
+        }
     }
 
     public function assign(Request $request, Candidate $candidate): JsonResponse
@@ -101,5 +127,22 @@ class CandidateController extends Controller
         return response()->json([
             'mailto_link' => $mailtoLink,
         ]);
+    }
+
+    public function downloadFile(Request $request)
+    {
+        $path = $request->query('path');
+        
+        if (!$path) {
+            abort(400, 'No path provided');
+        }
+
+        $path = rawurldecode($path);
+        
+        if (!\Illuminate\Support\Facades\Storage::disk('secure')->exists($path)) {
+            abort(404, 'File not found');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('secure')->download($path, basename($path));
     }
 }

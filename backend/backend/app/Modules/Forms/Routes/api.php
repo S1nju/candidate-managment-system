@@ -1,12 +1,16 @@
 <?php
 
-use App\Http\Controllers\Modules\Forms\Http\Controllers\FormController;
-use App\Http\Controllers\Modules\Forms\Http\Controllers\PublicFormController;
+use App\Modules\Forms\Http\Controllers\FormController;
+use App\Modules\Forms\Http\Controllers\PublicFormController;
+use App\Modules\Forms\Http\Controllers\FormContractController;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes - protected by auth
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('forms', FormController::class);
+    Route::get('forms/{formId}/contracts/{id}/template', [FormContractController::class, 'downloadTemplate']);
+    Route::get('generated-contracts/{id}/download', [FormContractController::class, 'downloadGenerated']);
+    Route::apiResource('forms.contracts', FormContractController::class);
 });
 
 // Public routes - no authentication required

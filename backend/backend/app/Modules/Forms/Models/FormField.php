@@ -1,7 +1,6 @@
 <?php
 
-namespace App\Models\Modules\Forms\Models;
-
+namespace App\Modules\Forms\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +9,8 @@ class FormField extends Model
 {
     protected $fillable = [
         'form_id',
+        'page',
+        'page_title',
         'type',
         'label',
         'name',

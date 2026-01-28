@@ -10,9 +10,28 @@ use App\Modules\Users\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
+
 class UserController extends Controller
 {
     public function __construct(protected UserService $userService) {}
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $user = $request->user();
+        $user->update([
+            'password' => Hash::make($request->password),
+            'force_password_reset' => false,
+        ]);
+
+        return response()->json(['message' => 'Password changed successfully']);
+    }
 
     public function index(Request $request): JsonResponse
     {

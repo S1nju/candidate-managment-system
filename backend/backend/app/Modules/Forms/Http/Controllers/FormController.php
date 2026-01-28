@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Modules\Forms\Http\Controllers;
+namespace App\Modules\Forms\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\Modules\Forms\Models\Form;
+use App\Modules\Forms\Models\Form;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,7 +14,9 @@ class FormController extends Controller
      */
     public function index()
     {
-        $forms = Form::with(['fields', 'creator'])
+        $forms = Form::with(['fields' => function($q) {
+                $q->orderBy('page')->orderBy('order');
+            }, 'creator'])
             ->where('created_by', Auth::id())
             ->orWhereHas('creator', function ($query) {
                 $query->whereHas('roles', function ($q) {
@@ -43,6 +45,8 @@ class FormController extends Controller
             'fields.*.name' => 'required|string',
             'fields.*.validation_rules' => 'nullable|array',
             'fields.*.order' => 'integer',
+            'fields.*.page' => 'nullable|integer',
+            'fields.*.page_title' => 'nullable|string|max:255',
         ]);
 
         $form = Form::create([
@@ -60,6 +64,8 @@ class FormController extends Controller
                 'name' => $fieldData['name'],
                 'validation_rules' => $fieldData['validation_rules'] ?? null,
                 'order' => $fieldData['order'] ?? $index,
+                'page' => $fieldData['page'] ?? 1,
+                'page_title' => $fieldData['page_title'] ?? null,
             ]);
         }
 
@@ -71,7 +77,9 @@ class FormController extends Controller
      */
     public function show(string $id)
     {
-        $form = Form::with('fields')->findOrFail($id);
+        $form = Form::with(['fields' => function($q) {
+            $q->orderBy('page')->orderBy('order');
+        }])->findOrFail($id);
         return response()->json($form);
     }
 
@@ -94,6 +102,8 @@ class FormController extends Controller
             'fields.*.name' => 'required|string',
             'fields.*.validation_rules' => 'nullable|array',
             'fields.*.order' => 'integer',
+            'fields.*.page' => 'nullable|integer',
+            'fields.*.page_title' => 'nullable|string|max:255',
         ]);
 
         $form->update($validated);
@@ -111,6 +121,8 @@ class FormController extends Controller
                         'name' => $fieldData['name'],
                         'validation_rules' => $fieldData['validation_rules'] ?? null,
                         'order' => $fieldData['order'] ?? $index,
+                        'page' => $fieldData['page'] ?? 1,
+                        'page_title' => $fieldData['page_title'] ?? null,
                     ]);
                 } else {
                     $form->fields()->create([
@@ -119,6 +131,8 @@ class FormController extends Controller
                         'name' => $fieldData['name'],
                         'validation_rules' => $fieldData['validation_rules'] ?? null,
                         'order' => $fieldData['order'] ?? $index,
+                        'page' => $fieldData['page'] ?? 1,
+                        'page_title' => $fieldData['page_title'] ?? null,
                     ]);
                 }
             }

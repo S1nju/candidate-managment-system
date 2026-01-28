@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Loader2, CheckCircle2 } from "lucide-react"
+import { Loader2, CheckCircle2, FileText, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function PublicFormPage() {
@@ -21,6 +21,7 @@ export default function PublicFormPage() {
     const [submitting, setSubmitting] = useState(false)
     const [formData, setFormData] = useState<Record<string, any>>({})
     const [submitted, setSubmitted] = useState(false)
+    const [currentPage, setCurrentPage] = useState(1)
 
     useEffect(() => {
         const fetchForm = async () => {
@@ -42,16 +43,64 @@ export default function PublicFormPage() {
         fetchForm()
     }, [uuid])
 
+    const pages = form ? Array.from(new Set(form.fields.map((f: any) => f.page || 1))).sort((a: any, b: any) => a - b) : []
+    const isLastPage = currentPage === (pages.length > 0 ? Math.max(...pages as number[]) : 1)
+    const isFirstPage = currentPage === 1
+
     const handleInputChange = (name: string, value: any) => {
         setFormData(prev => ({ ...prev, [name]: value }))
     }
 
+    const validateCurrentPage = () => {
+        const pageFields = form.fields.filter((f: any) => (f.page || 1) === currentPage)
+        for (const field of pageFields) {
+            if (field.validation_rules?.required && !formData[field.name]) {
+                toast({
+                    title: `Missing field: ${field.label}`,
+                    description: "Please complete all mandatory fields to continue.",
+                    variant: "destructive"
+                })
+                return false
+            }
+        }
+        return true
+    }
+
+    const handleNext = () => {
+        if (validateCurrentPage()) {
+            const nextPageIndex = (pages as number[]).indexOf(currentPage) + 1
+            if (nextPageIndex < pages.length) {
+                setCurrentPage(pages[nextPageIndex] as number)
+                window.scrollTo(0, 0)
+            }
+        }
+    }
+
+    const handlePrevious = () => {
+        const prevPageIndex = (pages as number[]).indexOf(currentPage) - 1
+        if (prevPageIndex >= 0) {
+            setCurrentPage(pages[prevPageIndex] as number)
+            window.scrollTo(0, 0)
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!validateCurrentPage()) return
+
         setSubmitting(true)
         try {
-            const res = await axios.post(`/api/public/forms/${uuid}/submit`, {
-                fields: formData
+            const data = new FormData()
+            Object.entries(formData).forEach(([key, value]) => {
+                if (value instanceof File) {
+                    data.append(`fields[${key}]`, value)
+                } else {
+                    data.append(`fields[${key}]`, value)
+                }
+            })
+
+            const res = await axios.post(`/api/public/forms/${uuid}/submit`, data, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             })
 
             if (res.data.kyc_required) {
@@ -104,17 +153,39 @@ export default function PublicFormPage() {
         )
     }
 
+    const currentPageFields = form.fields.filter((f: any) => (f.page || 1) === currentPage)
+    const currentPageTitle = currentPageFields[0]?.page_title || "Information"
+    const totalPagesCount = pages.length;
+    const progress = (pages.indexOf(currentPage) + 1) / totalPagesCount * 100;
+
     return (
         <div className="min-h-screen bg-slate-50 py-12 px-4">
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-2xl mx-auto space-y-4">
+                {/* Progress Bar */}
+                {totalPagesCount > 1 && (
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div
+                            className="bg-blue-600 h-full transition-all duration-500 ease-in-out"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                )}
+
                 <Card>
                     <CardHeader className="text-center">
                         <CardTitle className="text-3xl">{form.title}</CardTitle>
-                        {form.description && <CardDescription className="text-lg mt-2">{form.description}</CardDescription>}
+                        {totalPagesCount > 1 && (
+                            <p className="text-blue-600 font-semibold text-sm mt-2 uppercase tracking-wider">
+                                Step {(pages.indexOf(currentPage) + 1)} of {totalPagesCount}: {currentPageTitle}
+                            </p>
+                        )}
+                        {form.description && currentPage === 1 && (
+                            <CardDescription className="text-lg mt-2">{form.description}</CardDescription>
+                        )}
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {form.fields.map((field: any) => (
+                            {currentPageFields.map((field: any) => (
                                 <div key={field.id} className="space-y-2">
                                     <Label htmlFor={field.name}>
                                         {field.label}
@@ -122,13 +193,26 @@ export default function PublicFormPage() {
                                     </Label>
 
                                     {field.type === 'textarea' ? (
-                                        <Textarea
-                                            id={field.name}
-                                            required={field.validation_rules?.required}
-                                            value={formData[field.name] || ""}
-                                            onChange={(e) => handleInputChange(field.name, e.target.value)}
-                                            placeholder={`Enter ${field.label.toLowerCase()}...`}
-                                        />
+                                        <div className="space-y-1">
+                                            <Textarea
+                                                id={field.name}
+                                                required={field.validation_rules?.required}
+                                                value={formData[field.name] || ""}
+                                                onChange={(e) => {
+                                                    const value = e.target.value
+                                                    if (!field.validation_rules?.max || value.length <= field.validation_rules.max) {
+                                                        handleInputChange(field.name, value)
+                                                    }
+                                                }}
+                                                placeholder={`Enter ${field.label.toLowerCase()}...`}
+                                                maxLength={field.validation_rules?.max}
+                                            />
+                                            {field.validation_rules?.max && (
+                                                <p className="text-xs text-muted-foreground text-right">
+                                                    {(formData[field.name] || "").length} / {field.validation_rules.max}
+                                                </p>
+                                            )}
+                                        </div>
                                     ) : field.type === 'select' ? (
                                         <Select
                                             value={formData[field.name] || ""}
@@ -157,37 +241,104 @@ export default function PublicFormPage() {
                                             ))}
                                         </RadioGroup>
                                     ) : field.type === 'file' ? (
-                                        <Input
-                                            id={field.name}
-                                            type="file"
-                                            required={field.validation_rules?.required}
-                                            onChange={(e) => handleInputChange(field.name, e.target.files?.[0])}
-                                        />
+                                        <div className="space-y-3">
+                                            <Input
+                                                id={field.name}
+                                                type="file"
+                                                required={field.validation_rules?.required}
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0]
+                                                    if (file) {
+                                                        handleInputChange(field.name, file)
+                                                    }
+                                                }}
+                                                className="cursor-pointer"
+                                                accept={field.validation_rules?.accept || (field.name.includes('photo') || field.name.includes('image') ? 'image/*' : '.pdf,.doc,.docx')}
+                                            />
+                                            {formData[field.name] instanceof File && (
+                                                <div className="flex items-center gap-3 p-3 border rounded-lg bg-slate-50">
+                                                    {formData[field.name].type.startsWith('image/') ? (
+                                                        <div className="h-16 w-16 rounded overflow-hidden border bg-white flex-shrink-0">
+                                                            <img
+                                                                src={URL.createObjectURL(formData[field.name])}
+                                                                alt="Preview"
+                                                                className="h-full w-full object-cover"
+                                                                onLoad={(e) => URL.revokeObjectURL((e.target as HTMLImageElement).src)}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="h-16 w-16 rounded border bg-white flex items-center justify-center flex-shrink-0">
+                                                            <FileText className="h-8 w-8 text-blue-500" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0 text-sm">
+                                                        <p className="font-medium truncate">{formData[field.name].name}</p>
+                                                        <p className="text-muted-foreground">{(formData[field.name].size / 1024).toFixed(1)} KB</p>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive"
+                                                        onClick={() => handleInputChange(field.name, null)}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
                                     ) : (
-                                        <Input
-                                            id={field.name}
-                                            type={field.type}
-                                            required={field.validation_rules?.required}
-                                            value={formData[field.name] || ""}
-                                            onChange={(e) => handleInputChange(field.name, e.target.value)}
-                                            placeholder={`Enter ${field.label.toLowerCase()}...`}
-                                            maxLength={field.validation_rules?.max}
-                                            min={field.validation_rules?.min}
-                                        />
+                                        <div className="space-y-1">
+                                            <Input
+                                                id={field.name}
+                                                type={field.type}
+                                                required={field.validation_rules?.required}
+                                                value={formData[field.name] || ""}
+                                                onChange={(e) => {
+                                                    const value = e.target.value
+                                                    if (field.type === 'text' && field.validation_rules?.max && value.length > field.validation_rules.max) {
+                                                        return
+                                                    }
+                                                    handleInputChange(field.name, value)
+                                                }}
+                                                placeholder={`Enter ${field.label.toLowerCase()}...`}
+                                                maxLength={field.validation_rules?.max}
+                                                min={field.validation_rules?.min}
+                                            />
+                                            {field.type === 'text' && field.validation_rules?.max && (
+                                                <p className="text-xs text-muted-foreground text-right">
+                                                    {(formData[field.name] || "").length} / {field.validation_rules.max}
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             ))}
 
-                            <Button type="submit" className="w-full h-12 text-lg" disabled={submitting}>
-                                {submitting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                        Submitting...
-                                    </>
-                                ) : (
-                                    'Submit Application'
+                            <div className="flex gap-4 pt-4">
+                                {!isFirstPage && (
+                                    <Button type="button" variant="outline" className="flex-1 h-12 text-lg" onClick={handlePrevious}>
+                                        Previous
+                                    </Button>
                                 )}
-                            </Button>
+
+                                {isLastPage ? (
+                                    <Button type="submit" className="flex-1 h-12 text-lg bg-blue-600 hover:bg-blue-700" disabled={submitting}>
+                                        {submitting ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                                Submitting...
+                                            </>
+                                        ) : (
+                                            'Submit Application'
+                                        )}
+                                    </Button>
+                                ) : (
+                                    <Button type="button" className="flex-1 h-12 text-lg bg-blue-600 hover:bg-blue-700" onClick={handleNext}>
+                                        Next
+                                    </Button>
+                                )}
+                            </div>
 
                             <p className="text-center text-xs text-muted-foreground mt-4">
                                 Securely powered by Candidate Management System
@@ -199,3 +350,4 @@ export default function PublicFormPage() {
         </div>
     )
 }
+
