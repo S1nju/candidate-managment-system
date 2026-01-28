@@ -90,7 +90,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         setPreviewData(preview_data || {})
         setPlaceholders(placeholders || [])
 
-        const downloadUrl = `${axios.defaults.baseURL}/api/contracts/${encodeURIComponent(filePath)}`
+        const downloadUrl = `${axios.defaults.baseURL}/api/contracts/${encodeURIComponent(filePath)}`.replace('//api', '/api')
         setContractFile(downloadUrl)
       } catch (err) {
         console.error("Failed to get contract", err)
