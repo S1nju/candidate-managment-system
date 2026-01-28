@@ -172,6 +172,7 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
                 {contracts.map(contract => (
                     <ContractItem
                         key={contract.id}
+                        formId={formId}
                         contract={contract}
                         formFields={fields}
                         onDelete={() => removeContract(contract.id!)}
@@ -183,7 +184,7 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
 
             {editingContract && (
                 <ContractLayoutEditor
-                    fileUrl={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/forms/${formId}/contracts/${editingContract.id}/template`}
+                    fileUrl={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${editingContract.id}/template`}
                     mappings={editingContract.placeholders}
                     onSave={handleLayoutSave}
                     onClose={() => setEditingContract(null)}
@@ -200,7 +201,8 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
     )
 }
 
-function ContractItem({ contract, formFields, onDelete, onUpdateMapping, onEditLayout }: {
+function ContractItem({ formId, contract, formFields, onDelete, onUpdateMapping, onEditLayout }: {
+    formId: string,
     contract: Contract,
     formFields: FormField[],
     onDelete: () => void,
@@ -245,7 +247,7 @@ function ContractItem({ contract, formFields, onDelete, onUpdateMapping, onEditL
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="h-8" asChild>
-                        <a href={`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/forms/${contract.form_id || '6'}/contracts/${contract.id}/template`} download>
+                        <a href={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${contract.id}/template`} download>
                             <Upload className="h-3 w-3 mr-1 rotate-180" />
                             Template
                         </a>
