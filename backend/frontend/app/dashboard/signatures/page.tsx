@@ -26,21 +26,21 @@ function SortableSignatureCard({ sig, id, onDelete }: any) {
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes} className={isDragging ? "ring-2 ring-primary/60 bg-primary/5" : ""}>
-      <Card className="bg-white dark:bg-white border border-gray-200">
+      <Card className="bg-card border-border shadow-sm">
         <CardHeader className="flex flex-row items-center gap-2 justify-between">
           <div className="flex flex-row items-center gap-2">
             <span {...listeners} className="cursor-grab active:cursor-grabbing p-1"><GripVertical size={18} /></span>
             <CardTitle>{sig.type === 'drawn' ? t("signatures.types.drawn") : sig.type === 'typed' ? t("signatures.types.typed") : t("signatures.types.uploaded")}</CardTitle>
           </div>
-          <Button size="icon" variant="ghost" className="text-red-500 hover:bg-red-100" onClick={() => onDelete(sig.id)} title={t("signatures.delete_title")}>
+          <Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => onDelete(sig.id)} title={t("signatures.delete_title")}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </Button>
         </CardHeader>
         <CardContent>
           {sig.type === 'drawn' || sig.type === 'uploaded' ? (
-            <img src={sig.value} alt="Signature" className="max-h-24" />
+            <img src={sig.value} alt="Signature" className="max-h-24 dark:invert" />
           ) : (
-            <span className="text-2xl font-signature">{sig.value}</span>
+            <span className="text-2xl font-signature text-foreground">{sig.value}</span>
           )}
           <div className="text-xs text-muted-foreground mt-2">{sig.created_at}</div>
           {sig.initials && <div className="text-xs text-muted-foreground">{t("signatures.labels.initials")}: {sig.initials}</div>}
@@ -104,7 +104,7 @@ export default function SignaturesPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold tracking-tight">{t("signatures.title")}</h1>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList className="bg-muted/50 border">
           <TabsTrigger value="saved">{t("signatures.tabs.saved")}</TabsTrigger>
           <TabsTrigger value="draw">{t("signatures.tabs.draw")}</TabsTrigger>
           <TabsTrigger value="upload">{t("signatures.tabs.upload")}</TabsTrigger>
@@ -130,14 +130,14 @@ export default function SignaturesPage() {
           </DndContext>
         </TabsContent>
         <TabsContent value="draw">
-          <div className="mb-4 flex gap-2">
-            <div className="flex-1">
-              <label className="block text-xs font-bold mb-1">{t("signatures.labels.initials")}</label>
-              <Input value={initials} onChange={e => setInitials(e.target.value)} maxLength={3} placeholder="JD" />
+          <div className="mb-4 flex gap-4">
+            <div className="flex-1 space-y-1.5">
+              <label className="block text-xs font-bold uppercase text-muted-foreground">{t("signatures.labels.initials")}</label>
+              <Input value={initials} onChange={e => setInitials(e.target.value)} maxLength={3} placeholder="JD" className="bg-background" />
             </div>
-            <div className="flex-1">
-              <label className="block text-xs font-bold mb-1">{t("signatures.labels.date")}</label>
-              <Input value={date} onChange={e => setDate(e.target.value)} type="date" />
+            <div className="flex-1 space-y-1.5">
+              <label className="block text-xs font-bold uppercase text-muted-foreground">{t("signatures.labels.date")}</label>
+              <Input value={date} onChange={e => setDate(e.target.value)} type="date" className="bg-background" />
             </div>
           </div>
           <SignaturePad onSignatureCreate={handleSaveSignature} />

@@ -1,8 +1,7 @@
 <?php
 
-use App\Modules\Candidates\Models\Candidate;
-use App\Modules\Signing\Models\Signature;
 use App\Models\User;
+use App\Modules\Candidates\Models\Candidate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 
@@ -34,7 +33,7 @@ test('candidate can apply and sign contract', function () {
     $token = $user->createToken('test-token')->plainTextToken; // Create token once
 
     // 2. Generate Contract
-    $genResponse = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+    $genResponse = $this->withHeaders(['Authorization' => 'Bearer '.$token])
         ->postJson("/api/candidates/{$candidateId}/generate-contract");
     $genResponse->assertStatus(200);
     $file = $genResponse->json('file');
@@ -42,24 +41,24 @@ test('candidate can apply and sign contract', function () {
 
     // 3. Sign Contract (new endpoint)
     // $user = User::factory()->create(); // Already created
-    
+
     // Sanctum::actingAs($user, ['*']);
     // $token = $user->createToken('test-token')->plainTextToken;
-    
-    $signResponse = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
+
+    $signResponse = $this->withHeaders(['Authorization' => 'Bearer '.$token])
         ->postJson("/api/candidates/{$candidateId}/sign-contract", [
             'signatures' => [
                 [
                     'type' => 'drawn',
                     'value' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    'placement' => ['x' => 50, 'y' => 50, 'page' => 1]
-                ]
+                    'placement' => ['x' => 50, 'y' => 50, 'page' => 1],
+                ],
             ],
-            'ip_address' => '127.0.0.1'
+            'ip_address' => 'localhost',
         ]);
 
     $signResponse->assertStatus(200);
-    
+
     // 4. Verify relation
     $candidate = Candidate::find($candidateId);
     expect($candidate->signature_id)->not->toBeNull();

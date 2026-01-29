@@ -75,14 +75,6 @@ export function DashboardSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/documents")}>
-                  <Link href="/dashboard/documents">
-                    <FileTextIcon className="size-4" />
-                    <span>{t("sidebar.documents")}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/forms")}>

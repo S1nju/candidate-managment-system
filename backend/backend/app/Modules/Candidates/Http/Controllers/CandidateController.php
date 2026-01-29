@@ -2,32 +2,47 @@
 
 namespace App\Modules\Candidates\Http\Controllers;
 
-use App\Modules\Candidates\Models\Candidate;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Modules\Candidates\Models\Candidate;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CandidateController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
         $query = Candidate::query();
+        $user = $request->user();
+
+        // Security: Non-admins only see their assigned candidates
+        if (! $user->hasRole('admin')) {
+            $query->where('assigned_to', $user->id);
+        }
+
         if ($search = $request->query('search')) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'ilike', "%$search%")
-                  ->orWhere('email', 'ilike', "%$search%")
-                  ->orWhere('position', 'ilike', "%$search%")
-                  ->orWhere('phone', 'ilike', "%$search%")
-                ;
+                    ->orWhere('email', 'ilike', "%$search%")
+                    ->orWhere('position', 'ilike', "%$search%")
+                    ->orWhere('phone', 'ilike', "%$search%");
             });
         }
+
+        if ($status = $request->query('status')) {
+            if ($status !== 'all') {
+                $query->where('contract_status', $status);
+            }
+        }
+
         $perPage = (int) $request->query('per_page', 15);
-        $candidates = $query->with('form')->orderByDesc('created_at')->paginate($perPage);
+        $candidates = $query->with(['form', 'assignedTo'])->orderByDesc('created_at')->paginate($perPage);
+
         return response()->json([
             'data' => $candidates->items(),
             'total' => $candidates->total(),
             'current_page' => $candidates->currentPage(),
             'last_page' => $candidates->lastPage(),
+            'per_page' => $candidates->perPage(),
         ]);
     }
 
@@ -42,15 +57,16 @@ class CandidateController extends Controller
         }
 
         if ($request->hasFile('cv')) {
-             $path = $request->file('cv')->store('candidates/cvs', 'secure');
-             $data['cv_url'] = $path;
-             unset($data['cv']);
+            $path = $request->file('cv')->store('candidates/cvs', 'secure');
+            $data['cv_url'] = $path;
+            unset($data['cv']);
         }
-        
+
         // Ensure data field is set if null (optional, depending on model)
         // $data['data'] = $data['data'] ?? [];
 
         $candidate = Candidate::create($data);
+
         return response()->json($candidate, 201);
     }
 
@@ -64,7 +80,7 @@ class CandidateController extends Controller
         try {
             $data = $request->validate([
                 'name' => 'nullable|string|max:255',
-                'email' => 'nullable|email|unique:candidates,email,' . $candidate->id,
+                'email' => 'nullable|email|unique:candidates,email,'.$candidate->id,
                 'phone' => 'nullable|string|max:50',
                 'dob' => 'nullable|date',
                 'nationality' => 'nullable|string|max:100',
@@ -80,18 +96,20 @@ class CandidateController extends Controller
                 'gender' => 'nullable|string|max:100',
                 'status' => 'nullable|string',
                 'signature_id' => 'nullable|exists:signatures,id',
+                'data' => 'nullable|array',
             ]);
 
             $candidate->update($data);
-            \Illuminate\Support\Facades\Log::info("Candidate updated: " . $candidate->id);
+            \Illuminate\Support\Facades\Log::info('Candidate updated: '.$candidate->id);
 
             return response()->json($candidate);
         } catch (\Illuminate\Validation\ValidationException $e) {
-             \Illuminate\Support\Facades\Log::error("Candidate update validation failed: " . json_encode($e->errors()));
-             throw $e;
+            \Illuminate\Support\Facades\Log::error('Candidate update validation failed: '.json_encode($e->errors()));
+            throw $e;
         } catch (\Exception $e) {
-             \Illuminate\Support\Facades\Log::error("Candidate update error: " . $e->getMessage());
-             return response()->json(['message' => $e->getMessage()], 500);
+            \Illuminate\Support\Facades\Log::error('Candidate update error: '.$e->getMessage());
+
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
 
@@ -121,7 +139,7 @@ class CandidateController extends Controller
 
         $subject = rawurlencode('Regarding your application');
         $body = rawurlencode("Hello,\n\nWe are reaching out to you regarding your application...");
-        
+
         $mailtoLink = "mailto:?bcc={$emails}&subject={$subject}&body={$body}";
 
         return response()->json([
@@ -132,17 +150,17 @@ class CandidateController extends Controller
     public function downloadFile(Request $request)
     {
         $path = $request->query('path');
-        
-        if (!$path) {
+
+        if (! $path) {
             abort(400, 'No path provided');
         }
 
         $path = rawurldecode($path);
-        
-        if (!\Illuminate\Support\Facades\Storage::disk('secure')->exists($path)) {
+
+        if (! \Illuminate\Support\Facades\Storage::disk('secure')->exists($path)) {
             abort(404, 'File not found');
         }
 
-        return \Illuminate\Support\Facades\Storage::disk('secure')->download($path, basename($path));
+        return \Illuminate\Support\Facades\Storage::disk('secure')->response($path);
     }
 }

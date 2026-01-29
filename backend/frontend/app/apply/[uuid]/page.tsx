@@ -240,7 +240,7 @@ export default function PublicFormPage() {
                                                 </div>
                                             ))}
                                         </RadioGroup>
-                                    ) : field.type === 'file' ? (
+                                    ) : (field.type === 'file') ? (
                                         <div className="space-y-3">
                                             <Input
                                                 id={field.name}
@@ -287,31 +287,80 @@ export default function PublicFormPage() {
                                                 </div>
                                             )}
                                         </div>
-                                    ) : (
-                                        <div className="space-y-1">
-                                            <Input
-                                                id={field.name}
-                                                type={field.type}
-                                                required={field.validation_rules?.required}
-                                                value={formData[field.name] || ""}
-                                                onChange={(e) => {
-                                                    const value = e.target.value
-                                                    if (field.type === 'text' && field.validation_rules?.max && value.length > field.validation_rules.max) {
-                                                        return
-                                                    }
-                                                    handleInputChange(field.name, value)
-                                                }}
-                                                placeholder={`Enter ${field.label.toLowerCase()}...`}
-                                                maxLength={field.validation_rules?.max}
-                                                min={field.validation_rules?.min}
-                                            />
-                                            {field.type === 'text' && field.validation_rules?.max && (
-                                                <p className="text-xs text-muted-foreground text-right">
-                                                    {(formData[field.name] || "").length} / {field.validation_rules.max}
-                                                </p>
+                                    ) :
+                                        (field.type === 'image') ? (
+                                            <div className="space-y-3">
+                                                <Input
+                                                    id={field.name}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    required={field.validation_rules?.required}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            handleInputChange(field.name, file)
+                                                        }
+                                                    }}
+                                                    className="cursor-pointer"
+
+                                                />
+                                                {formData[field.name] instanceof File && (
+                                                    <div className="flex items-center gap-3 p-3 border rounded-lg bg-slate-50">
+                                                        {formData[field.name].type.startsWith('image/') ? (
+                                                            <div className="h-16 w-16 rounded overflow-hidden border bg-white flex-shrink-0">
+                                                                <img
+                                                                    src={URL.createObjectURL(formData[field.name])}
+                                                                    alt="Preview"
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="h-16 w-16 rounded border bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                                                <FileText className="h-8 w-8 text-blue-500" />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1 min-w-0 text-sm">
+                                                            <p className="font-medium truncate">{formData[field.name].name}</p>
+                                                            <p className="text-muted-foreground">{(formData[field.name].size / 1024).toFixed(1)} KB</p>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="text-destructive"
+                                                            onClick={() => handleInputChange(field.name, null)}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) :
+                                            (
+                                                <div className="space-y-1">
+                                                    <Input
+                                                        id={field.name}
+                                                        type={field.type}
+                                                        required={field.validation_rules?.required}
+                                                        value={formData[field.name] || ""}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value
+                                                            if (field.type === 'text' && field.validation_rules?.max && value.length > field.validation_rules.max) {
+                                                                return
+                                                            }
+                                                            handleInputChange(field.name, value)
+                                                        }}
+                                                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                                                        maxLength={field.validation_rules?.max}
+                                                        min={field.validation_rules?.min}
+                                                    />
+                                                    {field.type === 'text' && field.validation_rules?.max && (
+                                                        <p className="text-xs text-muted-foreground text-right">
+                                                            {(formData[field.name] || "").length} / {field.validation_rules.max}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             )}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
 

@@ -14,8 +14,10 @@ import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout } from "lucide-react
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormContractManager } from "@/components/forms/form-contract-manager"
+import { useLanguage } from "@/context/language-context"
 
 export default function EditFormPage() {
+    const { t } = useLanguage()
     const router = useRouter()
     const { id } = useParams()
     const { toast } = useToast()
@@ -100,33 +102,33 @@ export default function EditFormPage() {
             </Link>
 
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Edit Form</h1>
+                <h1 className="text-3xl font-bold">{t("forms.edit")}</h1>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handleDelete} className="text-destructive border-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                        {t("common.delete")}
                     </Button>
                     <Button onClick={handleSubmit} disabled={saving} className="flex items-center gap-2">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        Save Changes
+                        {t("forms.save_changes")}
                     </Button>
                 </div>
             </div>
 
             <Tabs defaultValue="fields" className="space-y-6">
-                <TabsList className="bg-white border w-full justify-start h-12 p-1">
+                <TabsList className="bg-muted/50 border w-full justify-start h-12 p-1">
                     <TabsTrigger value="fields" className="h-full px-6 flex items-center gap-2">
                         <Layout className="h-4 w-4" />
-                        Form Fields
+                        {t("forms.fields_tab")}
                     </TabsTrigger>
                     <TabsTrigger value="contracts" className="h-full px-6 flex items-center gap-2">
                         <FileText className="h-4 w-4" />
-                        Contract Automation
+                        {t("forms.contracts_tab")}
                     </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="fields" className="space-y-6">
-                    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-lg shadow-sm border">
+                    <form onSubmit={handleSubmit} className="space-y-8 bg-card p-8 rounded-lg shadow-sm border">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
                                 <div className="space-y-2">
@@ -135,6 +137,7 @@ export default function EditFormPage() {
                                         id="title"
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
+                                        className="bg-background"
                                     />
                                 </div>
 
@@ -144,6 +147,7 @@ export default function EditFormPage() {
                                         id="description"
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
+                                        className="bg-background"
                                     />
                                 </div>
                             </div>
@@ -152,7 +156,7 @@ export default function EditFormPage() {
                                 <div className="space-y-2">
                                     <Label htmlFor="status">Form Status</Label>
                                     <Select value={status} onValueChange={(val) => setStatus(val)}>
-                                        <SelectTrigger>
+                                        <SelectTrigger className="bg-background">
                                             <SelectValue placeholder="Select status" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -163,7 +167,7 @@ export default function EditFormPage() {
                                     </Select>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
+                                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md border">
                                     <div className="space-y-0.5">
                                         <Label className="text-base">Require Identity Verification (KYC)</Label>
                                         <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
@@ -173,13 +177,13 @@ export default function EditFormPage() {
                             </div>
                         </div>
 
-                        <hr />
+                        <hr className="dark:border-slate-800" />
 
                         <FormBuilder initialFields={fields} onChange={setFields} />
                     </form>
                 </TabsContent>
 
-                <TabsContent value="contracts" className="bg-white p-8 rounded-lg shadow-sm border">
+                <TabsContent value="contracts" className="bg-card p-8 rounded-lg shadow-sm border">
                     <FormContractManager formId={id as string} fields={fields} />
                 </TabsContent>
             </Tabs>

@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from "react"
+import { useLanguage } from "@/context/language-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,6 +30,7 @@ interface FormBuilderProps {
 }
 
 export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) {
+    const { t } = useLanguage()
     const [fields, setFields] = useState<FormField[]>(initialFields.length > 0 ? initialFields : [
         { type: "text", label: "Full Name", name: "name", validation_rules: { required: true }, order: 0, page: 1 },
         { type: "email", label: "Email Address", name: "email", validation_rules: { required: true }, order: 1, page: 1 }
@@ -110,22 +112,22 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
             <div className="flex justify-between items-center">
                 <h3 className="text-xl font-bold flex items-center gap-2">
                     <Layout className="h-5 w-5 text-blue-600" />
-                    Form Structure
+                    {t("forms.builder.structure")}
                 </h3>
                 <Button type="button" variant="outline" size="sm" onClick={addPage} className="flex items-center gap-2 border-primary text-primary hover:bg-primary/5">
                     <Plus className="h-4 w-4" />
-                    Add New Page
+                    {t("forms.builder.add_page")}
                 </Button>
             </div>
 
             <div className="space-y-12">
                 {pages.map((pageNumber) => (
-                    <div key={pageNumber} className="space-y-4 border-l-2 border-slate-200 pl-6 relative">
-                        <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-slate-200 border-4 border-white" />
+                    <div key={pageNumber} className="space-y-4 border-l-2 border-slate-200 dark:border-slate-800 pl-6 relative">
+                        <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-slate-200 dark:bg-slate-800 border-4 border-background" />
 
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50 p-4 rounded-lg border">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/50 p-4 rounded-lg border">
                             <div className="flex-1 space-y-1">
-                                <Label className="text-xs uppercase font-bold text-slate-500">Page {pageNumber} Title</Label>
+                                <Label className="text-xs uppercase font-bold text-muted-foreground">{t("forms.builder.page_title").replace("{page}", pageNumber.toString())}</Label>
                                 <Input
                                     placeholder="e.g. Personal Information"
                                     className="bg-transparent border-0 border-b rounded-none px-0 focus-visible:ring-0 text-lg font-semibold h-8"
@@ -133,8 +135,8 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                     onChange={(e) => updatePageTitle(pageNumber, e.target.value)}
                                 />
                             </div>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => addField(pageNumber)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                                <Plus className="h-4 w-4 mr-1" /> Add field to Page {pageNumber}
+                            <Button type="button" variant="ghost" size="sm" onClick={() => addField(pageNumber)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                                <Plus className="h-4 w-4 mr-1" /> {t("forms.builder.add_field").replace("{page}", pageNumber.toString())}
                             </Button>
                         </div>
 
@@ -143,7 +145,7 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                 .map((f, i) => ({ ...f, originalIndex: i }))
                                 .filter(f => (f.page || 1) === pageNumber)
                                 .map((field) => (
-                                    <Card key={field.originalIndex} className="relative group border shadow-none hover:border-slate-300 transition-colors">
+                                    <Card key={field.originalIndex} className="relative group border shadow-none bg-card hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                                         <CardContent className="p-4 flex gap-4 items-start">
                                             <div className="flex flex-col gap-1 pt-2">
                                                 <Button
@@ -153,7 +155,7 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                     className="h-6 w-6"
                                                     onClick={() => moveField(field.originalIndex, 'up')}
                                                 >
-                                                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
                                                 </Button>
                                                 <Button
                                                     type="button"
@@ -162,28 +164,28 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                     className="h-6 w-6"
                                                     onClick={() => moveField(field.originalIndex, 'down')}
                                                 >
-                                                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                                 </Button>
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs">Field Label</Label>
+                                                    <Label className="text-xs">{t("forms.builder.field_label")}</Label>
                                                     <Input
-                                                        className="h-9"
+                                                        className="h-9 bg-background"
                                                         value={field.label}
                                                         onChange={(e) => updateField(field.originalIndex, { label: e.target.value, name: ['name', 'email'].includes(field.name) ? field.name : e.target.value.toLowerCase().replace(/\s+/g, '_') })}
                                                     />
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs">Field Type</Label>
+                                                    <Label className="text-xs">{t("forms.builder.field_type")}</Label>
                                                     <Select
                                                         value={field.type}
                                                         onValueChange={(val) => updateField(field.originalIndex, { type: val })}
                                                         disabled={['name', 'email'].includes(field.name)}
                                                     >
-                                                        <SelectTrigger className="h-9">
+                                                        <SelectTrigger className="h-9 bg-background">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -195,17 +197,18 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                             <SelectItem value="radio">Options</SelectItem>
                                                             <SelectItem value="textarea">Paragraph</SelectItem>
                                                             <SelectItem value="file">File Upload</SelectItem>
+                                                            <SelectItem value="image">Image Upload</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs">Move to Page</Label>
+                                                    <Label className="text-xs">{t("forms.builder.move_page")}</Label>
                                                     <Select
                                                         value={String(field.page || 1)}
                                                         onValueChange={(val) => updateField(field.originalIndex, { page: parseInt(val) })}
                                                     >
-                                                        <SelectTrigger className="h-9">
+                                                        <SelectTrigger className="h-9 bg-background">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -226,17 +229,17 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                             disabled={['name', 'email'].includes(field.name)}
                                                         />
                                                         <label htmlFor={`req-${field.originalIndex}`} className="text-[12px] font-medium leading-none">
-                                                            Mandatory Field
+                                                            {t("forms.builder.mandatory")}
                                                         </label>
                                                     </div>
                                                 </div>
 
                                                 {['select', 'radio'].includes(field.type) && (
-                                                    <div className="col-span-1 md:col-span-4 space-y-2 bg-slate-50 p-3 rounded-md border mt-1">
-                                                        <Label className="text-xs uppercase text-muted-foreground font-bold">Available Options</Label>
+                                                    <div className="col-span-1 md:col-span-4 space-y-2 bg-muted/50 p-3 rounded-md border dark:border-slate-800 mt-1">
+                                                        <Label className="text-xs uppercase text-muted-foreground font-bold">{t("forms.builder.options")}</Label>
                                                         <div className="flex flex-wrap gap-2">
                                                             {((field.validation_rules as any).options || []).map((opt: string, optIdx: number) => (
-                                                                <div key={optIdx} className="flex items-center gap-1 bg-white border px-2 py-1 rounded text-sm group/opt">
+                                                                <div key={optIdx} className="flex items-center gap-1 bg-background border px-2 py-1 rounded text-sm group/opt">
                                                                     <span>{opt}</span>
                                                                     <Button
                                                                         type="button"
@@ -257,7 +260,7 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                             <div className="flex gap-1 items-center">
                                                                 <Input
                                                                     placeholder="Add option and press Enter"
-                                                                    className="h-8 w-44 text-xs"
+                                                                    className="h-8 w-44 text-xs bg-background"
                                                                     onKeyDown={(e) => {
                                                                         if (e.key === 'Enter') {
                                                                             e.preventDefault()
@@ -280,7 +283,7 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                         <Label className="text-xs text-muted-foreground">MaxLength</Label>
                                                         <Input
                                                             type="number"
-                                                            className="h-8"
+                                                            className="h-8 bg-background"
                                                             value={field.validation_rules.max || ""}
                                                             onChange={(e) => updateValidation(field.originalIndex, { max: parseInt(e.target.value) || undefined })}
                                                         />
@@ -307,8 +310,8 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                 ))}
             </div>
 
-            <Button type="button" variant="ghost" className="w-full border-2 border-dashed h-20 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300" onClick={addPage}>
-                <Plus className="mr-2 h-5 w-5" /> Create Another Page
+            <Button type="button" variant="ghost" className="w-full border-2 border-dashed h-20 bg-muted/20 hover:bg-muted/50 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 transition-all" onClick={addPage}>
+                <Plus className="mr-2 h-5 w-5" /> {t("forms.builder.create_page")}
             </Button>
         </div>
     )

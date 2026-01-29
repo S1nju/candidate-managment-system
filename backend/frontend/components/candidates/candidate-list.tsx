@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import useSWR from "swr"
 import axios from "@/lib/axios"
 import {
@@ -25,16 +25,13 @@ import {
   UserIcon,
   Search,
   Filter,
-  PenToolIcon,
   EyeIcon,
   Mail,
   Phone,
-  UserPlus,
   Send,
-  CheckSquare,
-  Square
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
-import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { useLanguage } from "@/context/language-context"
@@ -67,29 +64,37 @@ export function CandidateList() {
   const isAdmin = currentUser?.roles?.some((r: any) => r.name === 'admin')
 
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [status, setStatus] = useState("all")
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [isEmailOpen, setIsEmailOpen] = useState(false)
-  const pageSize = 15
 
-  const { data: response, error, isLoading, mutate } = useSWR("/api/candidates")
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1) // Reset to first page on search
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [search])
 
-  const { data: workers } = useSWR(isAdmin ? "/api/users?role=worker" : null)
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    search: debouncedSearch,
+    status: status,
+    per_page: "15"
+  })
 
-  let candidates = (response?.data as Candidate[] || [])
+  const { data: response, error, isLoading, mutate } = useSWR(`/api/candidates?${queryParams.toString()}`)
+  const { data: workers } = useSWR(isAdmin ? "/api/users" : null)
 
-  // Logic: Candidates only show to admin initially, or to assigned worker
-  if (!isAdmin) {
-    candidates = candidates.filter(c => c.assigned_to === currentUser?.id)
-  }
-
-  if (search) {
-    const lowerSearch = search.toLowerCase()
-    candidates = candidates.filter(c =>
-      c.name.toLowerCase().includes(lowerSearch) ||
-      c.email.toLowerCase().includes(lowerSearch)
-    )
+  const candidates = (response?.data as Candidate[] || [])
+  const pagination = {
+    current_page: response?.current_page || 1,
+    last_page: response?.last_page || 1,
+    total: response?.total || 0,
+    per_page: response?.per_page || 15
   }
 
   const toggleSelect = (id: number) => {
@@ -97,10 +102,10 @@ export function CandidateList() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedCandidates.length) {
+    if (selectedIds.length === candidates.length && candidates.length > 0) {
       setSelectedIds([])
     } else {
-      setSelectedIds(paginatedCandidates.map(c => c.id))
+      setSelectedIds(candidates.map(c => c.id))
     }
   }
 
@@ -114,15 +119,10 @@ export function CandidateList() {
     }
   }
 
-  const handleBulkEmail = async () => {
-    if (selectedIds.length === 0) return
-    setIsEmailOpen(true)
+  const handleStatusChange = (val: string) => {
+    setStatus(val)
+    setPage(1) // Reset to first page on filter change
   }
-
-  // Pagination logic
-  const total = candidates.length
-  const totalPages = Math.ceil(total / pageSize)
-  const paginatedCandidates = candidates.slice((page - 1) * pageSize, page * pageSize)
 
   const getStatusColor = (status: string) => {
     if (status === "signed") return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
@@ -155,7 +155,7 @@ export function CandidateList() {
             />
           </div>
           {isAdmin && selectedIds.length > 0 && (
-            <Button variant="outline" size="sm" onClick={handleBulkEmail} className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsEmailOpen(true)} className="flex items-center gap-2">
               <Send className="h-4 w-4" />
               Email ({selectedIds.length})
             </Button>
@@ -163,7 +163,7 @@ export function CandidateList() {
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[180px] h-10 bg-card">
               <SelectValue placeholder={t("candidates.list.filter_status")} />
             </SelectTrigger>
@@ -184,7 +184,7 @@ export function CandidateList() {
               {isAdmin && (
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedIds.length === paginatedCandidates.length && paginatedCandidates.length > 0}
+                    checked={selectedIds.length === candidates.length && candidates.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
@@ -193,27 +193,27 @@ export function CandidateList() {
               <TableHead className="font-semibold">{t("candidates.list.table.contact")}</TableHead>
               <TableHead className="font-semibold">{t("candidates.list.table.form")}</TableHead>
               <TableHead className="font-semibold">{t("candidates.list.table.position")}</TableHead>
-
               <TableHead className="font-semibold">{t("candidates.list.table.status")}</TableHead>
-              {isAdmin && <TableHead className="font-semibold">Assigned To</TableHead>}
+              {isAdmin && <TableHead className="font-semibold">{t("candidates.list.table.assigned_to")}</TableHead>}
               <TableHead className="text-right font-semibold">{t("candidates.list.table.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
+              Array.from({ length: 15 }).map((_, i) => (
                 <TableRow key={i}>
                   {isAdmin && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                   <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                   {isAdmin && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
                   <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))
-            ) : paginatedCandidates.length > 0 ? (
-              paginatedCandidates.map((c) => (
+            ) : candidates.length > 0 ? (
+              candidates.map((c) => (
                 <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
                   {isAdmin && (
                     <TableCell>
@@ -241,7 +241,7 @@ export function CandidateList() {
                     {c.form ? (
                       <Badge variant="outline" className="font-normal">{c.form.title}</Badge>
                     ) : (
-                      <span className="text-muted-foreground text-xs">Direct / Core</span>
+                      <span className="text-muted-foreground text-xs">{t("common.all")}</span>
                     )}
                   </TableCell>
                   <TableCell>{c.position}</TableCell>
@@ -252,13 +252,18 @@ export function CandidateList() {
                   </TableCell>
                   {isAdmin && (
                     <TableCell>
-                      <Select defaultValue={c.assigned_to?.toString()} onValueChange={(val) => handleAssign(c.id, val)}>
-                        <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 w-[140px]">
-                          <SelectValue placeholder="Unassigned" />
+                      <Select
+                        value={c.assigned_to?.toString() || "unassigned"}
+                        onValueChange={(val) => handleAssign(c.id, val === "unassigned" ? "" : val)}
+                      >
+                        <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 w-[140px] text-foreground transition-colors">
+                          <SelectValue placeholder={t("dashboard.stats.unsigned")}>
+                            {c.assigned_to_user?.name || t("dashboard.stats.unsigned")}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {workers?.map((w: any) => (
+                          <SelectItem value="unassigned">{t("dashboard.stats.unsigned")}</SelectItem>
+                          {workers?.data?.map((w: any) => (
                             <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -277,30 +282,60 @@ export function CandidateList() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 7 : 5} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 8 : 6} className="h-24 text-center text-muted-foreground">
                   {t("candidates.list.no_results")}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-      </div>
+      </div >
 
-      {totalPages > 1 && (
-        <div className="flex justify-end gap-2 mt-2">
-          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>{t("common.previous")}</Button>
-          <div className="flex items-center text-sm font-medium">
-            {t("candidates.list.pagination").replace("{page}", page.toString()).replace("{total}", totalPages.toString())}
-          </div>
-          <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>{t("common.next")}</Button>
+      {/* Modern Pagination Controls */}
+      < div className="flex items-center justify-between px-2 py-4 border-t border-slate-100" >
+        <div className="text-sm text-muted-foreground">
+          {t("candidates.list.pagination_summary")
+            ? t("candidates.list.pagination_summary")
+              .replace("{total}", pagination.total.toString())
+              .replace("{from}", (((page - 1) * pagination.per_page) + 1).toString())
+              .replace("{to}", Math.min(page * pagination.per_page, pagination.total).toString())
+            : `Showing ${((page - 1) * pagination.per_page) + 1} to ${Math.min(page * pagination.per_page, pagination.total)} of ${pagination.total} results`
+          }
         </div>
-      )}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center text-xs font-medium text-muted-foreground">
+            {t("candidates.list.pagination")
+              .replace("{page}", pagination.current_page.toString())
+              .replace("{total}", pagination.last_page.toString())}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage(page - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page >= pagination.last_page || isLoading}
+              onClick={() => setPage(page + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div >
 
       <EmailEditorDialog
         isOpen={isEmailOpen}
         onClose={() => setIsEmailOpen(false)}
         recipients={candidates.filter(c => selectedIds.includes(c.id)).map(c => c.email)}
       />
-    </div>
+    </div >
   )
 }

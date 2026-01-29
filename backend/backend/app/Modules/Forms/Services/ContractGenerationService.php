@@ -2,12 +2,12 @@
 
 namespace App\Modules\Forms\Services;
 
+use App\Modules\Candidates\Models\Candidate;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\FormContract;
 use App\Modules\Forms\Models\GeneratedContract;
-use App\Modules\Candidates\Models\Candidate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\TcpdfFpdi;
 
 class ContractGenerationService
@@ -17,12 +17,12 @@ class ContractGenerationService
      */
     public function generateForCandidate(Candidate $candidate)
     {
-        if (!$candidate->form_id) {
+        if (! $candidate->form_id) {
             return;
         }
 
         $form = Form::with('contracts')->find($candidate->form_id);
-        if (!$form || $form->contracts->isEmpty()) {
+        if (! $form || $form->contracts->isEmpty()) {
             return;
         }
 
@@ -30,7 +30,7 @@ class ContractGenerationService
             try {
                 $this->generateContract($candidate, $contract);
             } catch (\Exception $e) {
-                Log::error("Failed to generate contract {$contract->id} for candidate {$candidate->id}: " . $e->getMessage());
+                Log::error("Failed to generate contract {$contract->id} for candidate {$candidate->id}: ".$e->getMessage());
             }
         }
     }
@@ -40,60 +40,13 @@ class ContractGenerationService
      */
     public function generateContract(Candidate $candidate, FormContract $formContract)
     {
-        $templatePath = storage_path('app/secure/' . $formContract->template_path);
-        
-        if (!file_exists($templatePath)) {
-            throw new \Exception("Template file not found at: {$templatePath}");
-        }
+        $content = $this->generateContent($candidate, $formContract);
+        $fileName = 'generated_contracts/'.$candidate->id.'_'.$formContract->id.'_'.time().'.pdf';
 
-        $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
-        
-        $pdf = new TcpdfFpdi();
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->SetMargins(0, 0, 0);
-        $pdf->SetAutoPageBreak(false);
-
-        $pageCount = $pdf->setSourceFile($templatePath);
-
-        for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-            $templateId = $pdf->importPage($pageNo);
-            $size = $pdf->getTemplateSize($templateId);
-            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-            $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height'], true);
-
-            // Apply overlays for this page
-            foreach ($formContract->placeholders as $mapping) {
-                if (!isset($mapping['position']) || $mapping['position']['page'] !== $pageNo) {
-                    continue;
-                }
-
-                $placeholder = $mapping['placeholder'];
-                $value = $data[$placeholder] ?? '';
-                
-                if (!$value) continue;
-
-                $xPercent = $mapping['position']['x'];
-                $yPercent = $mapping['position']['y'];
-
-                $x = ($xPercent / 100) * $size['width'];
-                $y = ($yPercent / 100) * $size['height'];
-
-                // Simple text overlay for now. 
-                // We can expand this to handle "signature" types (images) if needed.
-                $pdf->SetFont('helvetica', 'B', 12);
-                $pdf->SetTextColor(0, 0, 0);
-                
-                // Centering adjustment: assume the text point is the center
-                $pdf->SetXY($x, $y);
-                $pdf->Cell(0, 0, $value, 0, 0, 'L');
-            }
-        }
-
-        $fileName = 'generated_contracts/' . $candidate->id . '_' . $formContract->id . '_' . time() . '.pdf';
-        $content = $pdf->Output('', 'S');
-        
         Storage::disk('secure')->put($fileName, $content);
+
+        // Re-resolve data for snapshot (or return it from generateContent, but for now simple re-resolve is cheap)
+        $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
 
         GeneratedContract::create([
             'candidate_id' => $candidate->id,
@@ -104,17 +57,147 @@ class ContractGenerationService
         ]);
     }
 
+    public function generateContent(Candidate $candidate, FormContract $formContract): string
+    {
+        try {
+            $templatePath = storage_path('app/secure/'.$formContract->template_path);
+
+            if (! file_exists($templatePath)) {
+                throw new \Exception("Template file not found at: {$templatePath}");
+            }
+
+            $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
+
+            $pdf = new TcpdfFpdi;
+            $pdf->setPrintHeader(false);
+            $pdf->setPrintFooter(false);
+            $pdf->SetMargins(0, 0, 0);
+            $pdf->SetAutoPageBreak(false);
+
+            $pageCount = $pdf->setSourceFile($templatePath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height'], true);
+
+                // Apply overlays for this page
+                foreach ($formContract->placeholders as $mapping) {
+                    if (! isset($mapping['position']) || $mapping['position']['page'] !== $pageNo) {
+                        continue;
+                    }
+
+                    $placeholder = $mapping['placeholder'];
+                    $value = $data[$placeholder] ?? '';
+
+                    // For images, we want to show error even if value is empty
+                    $isImageField = (isset($mapping['field_type']) && $mapping['field_type'] === 'image');
+
+                    if (! $value && $value !== '0' && ! $isImageField) {
+                        continue;
+                    }
+
+                    $xPercent = $mapping['position']['x'];
+                    $yPercent = $mapping['position']['y'];
+                    $wPercent = $mapping['position']['width'] ?? 0;
+
+                    $x = ($xPercent / 100) * $size['width'];
+                    $y = ($yPercent / 100) * $size['height'];
+                    $w = ($wPercent / 100) * $size['width'];
+
+                    $renderWidth = $w > 0 ? $w : 50;
+
+                    $isImage = false;
+                    if ($isImageField || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
+                        $isImage = true;
+                    }
+
+                    if ($isImage) {
+                        if (empty($value)) {
+                            $pdf->SetXY($x, $y);
+                            $pdf->SetFont('helvetica', '', 8);
+                            $pdf->SetTextColor(255, 0, 0);
+                            $pdf->Cell($renderWidth, 10, "[Img Missing: {$placeholder}]", 1, 0, 'C');
+                        } else {
+                            $foundPath = null;
+                            $tempFiles = [];
+
+                            if (is_string($value) && str_starts_with($value, 'http')) {
+                                try {
+                                    $response = \Illuminate\Support\Facades\Http::timeout(5)->get($value);
+                                    if ($response->successful()) {
+                                        $tempFile = tempnam(sys_get_temp_dir(), 'contract_img');
+                                        file_put_contents($tempFile, $response->body());
+                                        $foundPath = $tempFile;
+                                        $tempFiles[] = $tempFile;
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::error('GenContract: Download error: '.$e->getMessage());
+                                }
+                            } elseif (is_string($value) && $value) {
+                                $possiblePaths = [
+                                    storage_path('app/secure/'.$value),
+                                    storage_path('app/'.$value),
+                                    storage_path($value),
+                                    public_path($value),
+                                    $value,
+                                ];
+
+                                foreach ($possiblePaths as $testPath) {
+                                    if (file_exists($testPath) && is_file($testPath)) {
+                                        $foundPath = $testPath;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            try {
+                                if ($foundPath) {
+                                    $pdf->Image($foundPath, $x, $y, $renderWidth, 0);
+                                } else {
+                                    $pdf->SetXY($x, $y);
+                                    $pdf->SetFont('helvetica', '', 8);
+                                    $pdf->SetTextColor(255, 0, 0);
+                                    $pdf->Cell($renderWidth, 10, "[File Not Found: {$placeholder}]", 1, 0, 'C');
+                                }
+                            } catch (\Exception $e) {
+                                Log::error('GenContract: Image embed error: '.$e->getMessage());
+                            }
+
+                            foreach ($tempFiles as $tf) {
+                                if (file_exists($tf)) {
+                                    @unlink($tf);
+                                }
+                            }
+                        }
+                    } else {
+                        $pdf->SetFont('helvetica', 'B', 12);
+                        $pdf->SetTextColor(0, 0, 0);
+                        $pdf->SetXY($x, $y);
+                        $pdf->Cell(0, 0, (string) $value, 0, 0, 'L');
+                    }
+                }
+            }
+
+            return $pdf->Output('', 'S');
+        } catch (\Exception $e) {
+            Log::error('CRITICAL: Contract generation failed: '.$e->getMessage()."\n".$e->getTraceAsString());
+            throw $e;
+        }
+    }
+
     /**
      * Get resolved data for all contracts associated with a candidate's form.
      */
     public function getCandidateDataWithPlaceholders(Candidate $candidate): array
     {
-        if (!$candidate->form_id) {
+        if (! $candidate->form_id) {
             return [];
         }
 
         $form = Form::with('contracts')->find($candidate->form_id);
-        if (!$form || $form->contracts->isEmpty()) {
+        if (! $form || $form->contracts->isEmpty()) {
             return [];
         }
 
@@ -147,25 +230,54 @@ class ContractGenerationService
             $fieldName = $mapping['field_name'] ?? '';
             $placeholder = $mapping['placeholder'] ?? '';
 
-            if (!$placeholder) continue;
+            if (! $placeholder) {
+                continue;
+            }
+
+            // Fallback to placeholder name if field_name is empty
+            $searchKey = $fieldName ?: $placeholder;
+            // Strip {} if present from placeholder for search
+            $cleanKey = str_replace(['{{', '}}'], '', $searchKey);
 
             switch ($source) {
                 case 'form_field':
-                    $value = $candidate->data[$fieldName] ?? '';
-                    if (is_array($value) && isset($value['name'])) {
+                    $value = $candidate->data[$fieldName] ?? $candidate->data[$cleanKey] ?? $candidate->data[$searchKey] ?? '';
+
+                    // If we still don't have it, maybe try case-insensitive?
+                    if (empty($value) && ! empty($candidate->data)) {
+                        foreach ($candidate->data as $k => $v) {
+                            if (strtolower($k) === strtolower($fieldName) || strtolower($k) === strtolower($cleanKey)) {
+                                $value = $v;
+                                break;
+                            }
+                        }
+                    }
+
+                    // If it's a file object from dynamic form, we want the path for images
+                    if (is_array($value) && isset($value['path'])) {
+                        $value = $value['path'];
+                    } elseif (is_array($value) && isset($value['name']) && ! isset($value['path'])) {
                         $value = $value['name'];
                     }
                     break;
                 case 'candidate_data':
-                    $value = $candidate->{$fieldName} ?? '';
+                    $value = $candidate->{$fieldName} ?? $candidate->{$searchKey} ?? '';
                     break;
                 case 'didit_data':
                     // Fetch from verified data if available
                     $verifiedData = $candidate->data['verified_data'] ?? [];
-                    $value = $verifiedData[$fieldName] ?? '[Not Verified]';
+                    $value = $verifiedData[$fieldName] ?? $verifiedData[$cleanKey] ?? '[Not Verified]';
+                    break;
+                case 'system':
+                    if ($searchKey === 'date' || $cleanKey === 'date') {
+                        $value = date('Y-m-d');
+                    } else {
+                        $value = '';
+                    }
                     break;
             }
 
+            \Illuminate\Support\Facades\Log::info("GenContract: Resolved '{$placeholder}' (key: {$searchKey}) to value type: ".gettype($value));
             $resolved[$placeholder] = $value;
         }
 

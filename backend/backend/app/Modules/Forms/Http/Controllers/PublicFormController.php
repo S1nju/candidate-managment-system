@@ -3,16 +3,14 @@
 namespace App\Modules\Forms\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Forms\Models\Form;
 use App\Modules\Candidates\Models\Candidate;
+use App\Modules\Forms\Models\Form;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class PublicFormController extends Controller
 {
-    public function __construct(protected \App\Modules\Candidates\Services\DiditService $diditService)
-    {
-    }
+    public function __construct(protected \App\Modules\Candidates\Services\DiditService $diditService) {}
 
     /**
      * Get form by UUID for public access
@@ -42,21 +40,23 @@ class PublicFormController extends Controller
             'fields.name' => 'required|string|max:255',
             'fields.email' => 'required|email|max:255',
         ];
-        
+
         foreach ($form->fields as $field) {
-            if (in_array($field->name, ['name', 'email'])) continue;
-            
+            if (in_array($field->name, ['name', 'email'])) {
+                continue;
+            }
+
             $fieldRules = [];
-            
+
             if ($field->validation_rules) {
                 if (isset($field->validation_rules['required']) && $field->validation_rules['required']) {
                     $fieldRules[] = 'required';
                 }
                 if (isset($field->validation_rules['max'])) {
-                    $fieldRules[] = 'max:' . $field->validation_rules['max'];
+                    $fieldRules[] = 'max:'.$field->validation_rules['max'];
                 }
                 if (isset($field->validation_rules['min'])) {
-                    $fieldRules[] = 'min:' . $field->validation_rules['min'];
+                    $fieldRules[] = 'min:'.$field->validation_rules['min'];
                 }
             }
 
@@ -66,13 +66,13 @@ class PublicFormController extends Controller
                 $fieldRules[] = 'string';
             } elseif ($field->type === 'number') {
                 $fieldRules[] = 'numeric';
-            } elseif ($field->type === 'file') {
+            } elseif ($field->type === 'file' || $field->type === 'image') {
                 $fieldRules[] = 'file';
             } elseif (in_array($field->type, ['text', 'textarea'])) {
                 $fieldRules[] = 'string';
             }
 
-            $rules['fields.' . $field->name] = $fieldRules;
+            $rules['fields.'.$field->name] = $fieldRules;
         }
 
         $validator = Validator::make($request->all(), $rules);
@@ -80,16 +80,15 @@ class PublicFormController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $fieldsData = $request->input('fields', []);
 
-        // Handle file uploads
         foreach ($form->fields as $field) {
-            if ($field->type === 'file' && $request->hasFile('fields.' . $field->name)) {
-                $file = $request->file('fields.' . $field->name);
+            if (($field->type === 'file' || $field->type === 'image') && $request->hasFile('fields.'.$field->name)) {
+                $file = $request->file('fields.'.$field->name);
                 $path = $file->store('form_uploads', 'secure');
                 $fieldsData[$field->name] = [
                     'path' => $path,
@@ -124,7 +123,7 @@ class PublicFormController extends Controller
         if ($form->kyc_enabled) {
             try {
                 $session = $this->diditService->createSession(array_merge($candidateData, [
-                    'dob' => $fields['dob'] ?? null,
+                    'dob' => $fieldsData['dob'] ?? null,
                 ]));
 
                 return response()->json([
@@ -135,7 +134,7 @@ class PublicFormController extends Controller
             } catch (\Exception $e) {
                 return response()->json([
                     'message' => 'Failed to initiate KYC.',
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ], 500);
             }
         }

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown"
 import { useLanguage } from "@/context/language-context"
+import { DashboardBreadcrumbs } from "@/components/dashboard-breadcrumbs"
+import { Separator } from "@/components/ui/separator"
 
 export function DashboardHeader() {
   const { theme, setTheme } = useTheme()
@@ -14,6 +16,8 @@ export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
       <SidebarTrigger />
+      <Separator orientation="vertical" className="h-4" />
+      <DashboardBreadcrumbs />
       <div className="flex flex-1 items-center justify-end gap-2">
         <NotificationDropdown />
         <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>

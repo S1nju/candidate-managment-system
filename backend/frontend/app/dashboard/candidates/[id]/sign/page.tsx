@@ -5,12 +5,14 @@ import { useRouter, useParams } from "next/navigation"
 import dynamic from "next/dynamic"
 import { SignaturePad } from "@/components/signing/signature-pad"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Save, X, PenTool, Download } from "lucide-react"
+import { ArrowLeft, Save, X, PenTool, Download, Shield } from "lucide-react"
 import axios from "@/lib/axios"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
 import useSWR from "swr"
 import { Calendar, PenLine, Stamp, Type, CheckSquare } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import echo from "@/lib/echo"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import {
@@ -35,23 +37,34 @@ const FIELD_TYPES = [
       { type: "signature", label: "Signature", icon: <PenLine className="h-4 w-4" /> },
     ],
   },
-  // Keep other fields if needed, simplified for candidate contract
+  {
+    group: "Annotations",
+    fields: [
+      { type: "text", label: "Text", icon: <Type className="h-4 w-4" /> },
+      { type: "date", label: "Date", icon: <Calendar className="h-4 w-4" /> }
+    ]
+  }
 ]
 
 export default function SignCandidateContractPage({ params }: { params: Promise<{ id: string }> }) {
-  useAuth({ middleware: "auth" })
+  const { user } = useAuth({ middleware: "auth" })
   const { t } = useLanguage()
 
-  // Unwrap params for Next.js 15+ if needed, or just use useParams()
   const unwrappedParams = React.use(params)
   const id = unwrappedParams.id
 
   const router = useRouter()
   const { toast } = useToast()
 
+  // --- PRE-LOAD STATE ---
+  const [isVerifyingAvailability, setIsVerifyingAvailability] = useState(true)
+  const [availabilityStatus, setAvailabilityStatus] = useState<'available' | 'locked' | 'signed' | null>(null)
+  const [lockedBy, setLockedBy] = useState<string | null>(null)
+  const [isReadyToLoad, setIsReadyToLoad] = useState(false)
+
   // State for signatures
   const [signatures, setSignatures] = useState<Array<{
-    type: "drawn" | "typed" | "stamp",
+    type: "drawn" | "typed" | "stamp" | "text" | "date",
     value: string,
     placement: { x: number, y: number, page: number },
     style?: React.CSSProperties
@@ -66,21 +79,147 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [isRejecting, setIsRejecting] = useState(false)
+  const [signingStatus, setSigningStatus] = useState<any>(null)
+  const [activeUsers, setActiveUsers] = useState<any[]>([])
+  const lockingSessionId = useRef<string>(Math.random().toString(36).substring(2, 11) + Date.now().toString(36)).current
 
-  // Fetch Candidate
-  const { data: candidate, error, isLoading } = useSWR(`/api/candidates/${id}`, () => axios.get(`/api/candidates/${id}`).then(res => res.data))
+  // Fetch Candidate - ONLY LOAD IF READY
+  const { data: candidate, error, isLoading, mutate } = useSWR(isReadyToLoad ? `/api/candidates/${id}` : null, () => axios.get(`/api/candidates/${id}`).then(res => res.data))
 
-  // Fetch saved signatures
-  const { data: sigData } = useSWR("/api/signatures", () => axios.get("/api/signatures").then(res => res.data))
+  // Fetch saved signatures - ONLY LOAD IF READY
+  const { data: sigData } = useSWR(isReadyToLoad ? "/api/signatures" : null, () => axios.get("/api/signatures").then(res => res.data))
   const savedSignatures = sigData?.data || []
+
+  // STAGE 1: VERIFY AVAILABILITY BEFORE DOING ANYTHING ELSE
+  useEffect(() => {
+    if (!id || !user) return
+
+    const verifyAvailability = async () => {
+      try {
+        const res = await axios.get(`/api/candidates/${id}/signing-status`)
+        const status = res.data.status
+        const locker = res.data.locked_by
+
+        setAvailabilityStatus(status)
+        setLockedBy(locker)
+
+        // CRITICAL LOGIC: If it's available, signed, or locked by ME, we proceed to load
+        if (status === 'available' || status === 'signed' || (status === 'locked' && locker === user.name)) {
+          setIsReadyToLoad(true)
+        }
+      } catch (error) {
+        console.error("Verification failed", error)
+      } finally {
+        setIsVerifyingAvailability(false)
+      }
+    }
+
+    verifyAvailability()
+  }, [id, user])
+
+  const acquireLock = async () => {
+    try {
+      await axios.post(`/api/candidates/${id}/acquire-lock`, { session_id: lockingSessionId })
+    } catch (error: any) {
+      // Handled in checkStatus or UI block
+    }
+  }
+
+  const releaseLock = async () => {
+    try {
+      await axios.post(`/api/candidates/${id}/release-lock`, { session_id: lockingSessionId })
+    } catch (error) {
+      console.error("Failed to release lock", error)
+    }
+  }
+
+  const checkStatus = async () => {
+    try {
+      const res = await axios.get(`/api/candidates/${id}/signing-status`)
+      setSigningStatus(res.data)
+      setAvailabilityStatus(res.data.status)
+      setLockedBy(res.data.locked_by)
+
+      // If it becomes available or signed while we are waiting on the busy screen
+      if ((res.data.status === 'available' || res.data.status === 'signed') && !isReadyToLoad) {
+        setIsReadyToLoad(true)
+      }
+    } catch (error) {
+      console.error('Failed to check signing status', error)
+    }
+  }
+
+  const sendPing = async () => {
+    try {
+      await axios.post(`/api/candidates/${id}/ping`, { session_id: lockingSessionId })
+    } catch (e) {
+      console.error("Heartbeat failed", e)
+    }
+  }
+
+  // STAGE 2: ACTIVATE WEBSOCKETS AND LOCKING ONLY IF READY
+  useEffect(() => {
+    if (!id || !user || !isReadyToLoad) return
+
+    // Attempt to acquire lock immediately
+    acquireLock()
+    checkStatus()
+    sendPing()
+
+    const pingInterval = setInterval(sendPing, 10000)
+
+    if (!echo) {
+      // Fallback polling if echo is unavailable
+      const pollInterval = setInterval(checkStatus, 5000)
+      return () => {
+        clearInterval(pingInterval)
+        clearInterval(pollInterval)
+        releaseLock()
+      }
+    }
+
+    const channel = echo.join(`candidates.${id}.signing`)
+      .here((users: any[]) => {
+        const uniqueUsers = users.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+        setActiveUsers(uniqueUsers)
+      })
+      .joining((u: any) => {
+        setActiveUsers((prev) => {
+          const exists = prev.find(p => p.id === u.id);
+          return exists ? prev : [...prev, u];
+        })
+        if (u.id !== user?.id) checkStatus()
+      })
+      .leaving((u: any) => {
+        setActiveUsers((prev) => prev.filter(p => p.id !== u.id))
+        if (u.id !== user?.id) checkStatus()
+      })
+
+    const handleBeforeUnload = () => {
+      const url = `${axios.defaults.baseURL}/api/candidates/${id}/release-lock`.replace('//api', '/api');
+      const data = new FormData();
+      data.append('session_id', lockingSessionId);
+      navigator.sendBeacon(url, data);
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(pingInterval)
+      if (echo) echo.leave(`candidates.${id}.signing`)
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      releaseLock()
+    }
+  }, [id, user?.id, isReadyToLoad])
 
   const [contractFile, setContractFile] = useState<string | null>(null)
   const [loadingContract, setLoadingContract] = useState(false)
   const [previewData, setPreviewData] = useState<Record<string, string>>({})
   const [placeholders, setPlaceholders] = useState<any[]>([])
 
-  // Generate/Get contract on load
+  // Generate/Get contract on load - ONLY IF READY
   useEffect(() => {
+    if (!id || !isReadyToLoad) return
+
     async function fetchContract() {
       setLoadingContract(true)
       try {
@@ -90,7 +229,27 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         setPreviewData(preview_data || {})
         setPlaceholders(placeholders || [])
 
-        const downloadUrl = `${axios.defaults.baseURL}/api/contracts/${encodeURIComponent(filePath)}`.replace('//api', '/api')
+        // --- AUTOMATED SIGNATURE PLACEMENT ---
+        // Pre-fill signatures state with any placeholders that are designated for signatures
+        if (placeholders) {
+          const sigPlaceholders = placeholders.filter((p: any) =>
+            p.position && (p.field_name === 'signature' || p.placeholder === 'signature' || (p.source === 'system' && p.field_name === 'signature'))
+          )
+
+          if (sigPlaceholders.length > 0) {
+            setSignatures(sigPlaceholders.map((p: any) => ({
+              type: "drawn", // default type
+              value: "", // empty initially
+              placement: {
+                x: p.position.x,
+                y: p.position.y,
+                page: p.position.page
+              }
+            })))
+          }
+        }
+
+        const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract`.replace('//api', '/api')
         setContractFile(downloadUrl)
       } catch (err) {
         console.error("Failed to get contract", err)
@@ -99,18 +258,14 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         setLoadingContract(false)
       }
     }
-    if (id) fetchContract()
-  }, [id, toast])
+    fetchContract()
+  }, [id, isReadyToLoad, toast])
 
   const pdfUrl = contractFile;
 
   const handleSave = async () => {
-    if (signatures.length === 0) {
-      toast({
-        title: "Incomplete",
-        description: "Please place a signature on the document.",
-        variant: "destructive",
-      })
+    if (signatures.length === 0 || signatures.some(s => !s.value)) {
+      toast({ title: "Incomplete", description: "Please provide your signature for all required spots.", variant: "destructive" })
       return
     }
 
@@ -122,20 +277,20 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           value: sig.value,
           placement: sig.placement,
         })),
-        ip_address: "127.0.0.1",
+        session_id: lockingSessionId,
+        ip_address: "localhost",
         user_agent: navigator.userAgent
       }
 
       await axios.post(`/api/candidates/${id}/sign-contract`, payload)
-
       toast({ title: "Success", description: "Contract signed successfully" })
       router.push(`/dashboard/candidates`)
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to sign contract",
-        variant: "destructive",
-      })
+      if (error.response?.status === 409) {
+        toast({ title: "Contract Locked", description: error.response.data.message, variant: "destructive" })
+      } else {
+        toast({ title: "Error", description: error.response?.data?.message || "Failed to sign contract", variant: "destructive" })
+      }
     } finally {
       setIsSaving(false)
     }
@@ -144,17 +299,11 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   const handleReject = async () => {
     setIsRejecting(true)
     try {
-      await axios.post(`/api/candidates/${id}/reject-contract`, {
-        reason: rejectReason
-      })
+      await axios.post(`/api/candidates/${id}/reject-contract`, { reason: rejectReason })
       toast({ title: "Success", description: "Contract rejected" })
       router.push(`/dashboard/candidates`)
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to reject contract",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: error.response?.data?.message || "Failed to reject contract", variant: "destructive" })
     } finally {
       setIsRejecting(false)
       setShowRejectDialog(false)
@@ -172,19 +321,20 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   }
 
   const handleAddSavedSignature = (sigValue: string) => {
-    setSignatures(prev => [
-      ...prev.filter(s => s.value !== ""),
-      {
-        type: "drawn",
-        value: sigValue,
-        placement: { x: 50, y: 50, page: currentPage }
+    setSignatures(prev => {
+      // If we have placeholders (empty values), fill them
+      const hasPlaceholders = prev.some(s => s.value === "");
+      if (hasPlaceholders) {
+        return prev.map(s => s.value === "" ? { ...s, value: sigValue, type: "drawn" } : s);
       }
-    ])
-    setShowSavedSignatures(false)
-    toast({
-      title: "Signature added",
-      description: "Drag the signature to position it on the document"
+      // Otherwise fallback to adding a new one (normal behavior)
+      return [
+        ...prev,
+        { type: "drawn", value: sigValue, placement: { x: 50, y: 50, page: currentPage } }
+      ]
     })
+    setShowSavedSignatures(false)
+    toast({ title: "Signature added", description: "Position confirmed" })
   }
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -195,12 +345,10 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     const handleMove = (e: MouseEvent) => {
       if (!containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * 100
-      const y = ((e.clientY - rect.top) / rect.height) * 100
-      const clampedX = Math.max(0, Math.min(100, x))
-      const clampedY = Math.max(0, Math.min(100, y))
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100))
       setSignatures(prev => prev.map((sig, idx) =>
-        idx === draggingSignatureIdx ? { ...sig, placement: { ...sig.placement, x: clampedX, y: clampedY } } : sig
+        idx === draggingSignatureIdx ? { ...sig, placement: { ...sig.placement, x, y } } : sig
       ))
     }
     const handleUp = () => setDraggingSignatureIdx(null)
@@ -212,23 +360,88 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     }
   }, [draggingSignatureIdx])
 
-  if (isLoading) return <div className="p-10 text-center">{t("common.loading")}</div>
+  // --- UI RENDERING ---
+
+  // 1. Initial Verification Loader
+  if (isVerifyingAvailability || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-muted/30 text-muted-foreground">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+        <p className="text-sm font-medium">Verifying contract availability...</p>
+      </div>
+    )
+  }
+
+  // 2. Already Signed Overlay
+  if (availabilityStatus === 'signed' && !isLoading && candidate?.contract_status === 'signed') {
+    // Optional: Could also just let them in with isSigned=true
+  }
+
+  // 3. Busy Overlay (Only if NOT ready to load)
+  if (!isReadyToLoad && availabilityStatus === 'locked' && lockedBy !== user.name) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-muted/30 p-6 text-center">
+        <div className="bg-card p-8 rounded-xl shadow-lg max-w-md border border-yellow-200 dark:border-yellow-900/50">
+          <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-8 h-8 text-yellow-600 dark:text-yellow-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Contract Busy</h2>
+          <p className="text-muted-foreground mb-6">
+            <strong>{lockedBy}</strong> is currently signing this contract.
+            To prevent errors, you cannot enter this page until they finish or leave the page.
+          </p>
+          <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-3 mb-6 flex items-center justify-center gap-2 text-yellow-700 dark:text-yellow-500 font-medium border border-yellow-100 dark:border-yellow-900/20 text-xs">
+            <span>Availability: Updates in real-time</span>
+          </div>
+
+          <div className="space-y-3">
+            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+              Check Status Again
+            </Button>
+            <Button onClick={() => router.push('/dashboard/candidates')} variant="link" className="w-full">
+              Go Back
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Main Signing UI (Loading State)
+  if (isLoading || !candidate) return <div className="p-10 text-center">{t("common.loading")}</div>
   if (error) return <div className="p-10 text-center text-red-500">{t("candidates.sign.loading_pdf")}</div>
 
   const isSigned = !!(candidate?.signature_id || candidate?.contract_status?.toLowerCase() === 'signed');
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-muted/10">
+    <div className="h-full flex flex-col bg-muted/10">
       {/* Header */}
-      <div className="border-b px-6 py-3 flex items-center justify-between bg-background shadow-sm sticky top-0 z-10">
+      <div className=" px-6 py-3 flex items-center justify-between bg-background  top-0 z-10">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} type="button">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-lg font-semibold">{t("candidates.sign.title")}</h1>
-            <p className="text-sm text-muted-foreground">{candidate?.name}</p>
+            <h1 className="text-lg font-bold flex items-center gap-2">
+              {t("candidates.sign.title")}
+              {isSigned && (
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  {t("candidates.detail.contract_signed")}
+                </Badge>
+              )}
+            </h1>
+            <p className="text-xs text-muted-foreground">{candidate?.name}</p>
           </div>
+          {activeUsers.filter(u => u.id !== user?.id).length > 0 && (
+            <div className="flex -space-x-2 overflow-hidden ml-4 items-center">
+              <span className="text-[10px] text-muted-foreground mr-2 font-medium">Other signers:</span>
+              {activeUsers.filter(u => u.id !== user?.id).map((u, i) => (
+                <div key={i} title={u.name} className="inline-block h-6 w-6 text-center rounded-full ring-2 ring-background bg-muted text-foreground flex items-center justify-center text-[10px] font-bold border">
+                  {u.name.charAt(0)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           {contractFile && (
@@ -237,14 +450,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
               {t("candidates.sign.download_pdf")}
             </Button>
           )}
-          {!isSigned && (
-            <Link href="/dashboard/signatures">
-              <Button variant="outline" type="button">
-                <PenTool className="mr-2 h-4 w-4" />
-                {t("candidates.sign.my_signatures")}
-              </Button>
-            </Link>
-          )}
+
           <Button variant="outline" onClick={() => setShowRejectDialog(true)} type="button" className="text-red-600 hover:text-red-700">
             <X className="mr-2 h-4 w-4" />
             {t("candidates.sign.reject")}
@@ -259,19 +465,27 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-0 overflow-hidden relative">
-        {/* PDF Viewer */}
         <div
           ref={containerRef}
-          className="lg:col-span-4 border-r bg-muted/20 relative overflow-hidden flex flex-col items-center justify-center"
+          className="lg:col-span-4 h-full border-r bg-muted/20 relative overflow-hidden"
           onDragOver={e => e.preventDefault()}
           onDrop={e => {
-            if (draggingField === "signature") {
-              const rect = containerRef.current?.getBoundingClientRect()
-              if (rect) {
-                const x = ((e.clientX - rect.left) / rect.width) * 100
-                const y = ((e.clientY - rect.top) / rect.height) * 100
+            const rect = containerRef.current?.getBoundingClientRect()
+            if (rect) {
+              const x = ((e.clientX - rect.left) / rect.width) * 100
+              const y = ((e.clientY - rect.top) / rect.height) * 100
+
+              if (draggingField === "signature") {
                 setSignatures(prev => [...prev, { type: "drawn", value: "", placement: { x, y, page: currentPage } }])
                 setShowSignaturePad(true)
+              } else if (draggingField === "date") {
+                const dateStr = new Date().toLocaleDateString()
+                setSignatures(prev => [...prev, { type: "text", value: dateStr, placement: { x, y, page: currentPage }, style: { fontSize: '12px' } }])
+              } else if (draggingField === "text") {
+                const text = prompt("Enter text:")
+                if (text) {
+                  setSignatures(prev => [...prev, { type: "text", value: text, placement: { x, y, page: currentPage }, style: { fontSize: '12px' } }])
+                }
               }
             }
             setDraggingField(null)
@@ -281,21 +495,6 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
           {!loadingContract && pdfUrl && (
             <PDFViewer fileUrl={pdfUrl} onPageChange={setCurrentPage}>
-              {!isSigned && placeholders.map((p, idx) => (
-                p.position?.page === currentPage && (
-                  <div
-                    key={`p-${idx}`}
-                    className="absolute text-[12px] font-bold text-slate-800 whitespace-nowrap pointer-events-none"
-                    style={{
-                      left: `${p.position?.x}%`,
-                      top: `${p.position?.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  >
-                    {previewData[p.placeholder] || ""}
-                  </div>
-                )
-              ))}
               {signatures.map((sig, idx) => (
                 sig.placement?.page === currentPage && (
                   <div
@@ -304,7 +503,9 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                     style={{ left: `${sig.placement?.x}%`, top: `${sig.placement?.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none', pointerEvents: isSigned ? 'none' : 'auto' }}
                     onMouseDown={e => { if (!isSigned) { e.preventDefault(); setDraggingSignatureIdx(idx); } }}
                   >
-                    {sig.value ? (
+                    {sig.type === 'text' || sig.type === 'date' ? (
+                      <div className="text-emerald-900 font-bold whitespace-nowrap text-lg" style={sig.style}>{sig.value}</div>
+                    ) : sig.value ? (
                       <img src={sig.value} alt="Signature" className="pointer-events-none select-none" style={{ height: '64px', filter: 'none', fontWeight: 700 }} />
                     ) : (
                       <div className="text-emerald-500 font-bold whitespace-nowrap text-xs">Signature</div>
@@ -316,22 +517,16 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           )}
         </div>
 
-        {/* Sidebar */}
         {!isSigned && (
           <div className="hidden lg:block col-span-1 border-l bg-background p-4 shadow-xl z-20">
             <div className="font-bold text-xs text-muted-foreground mb-4 tracking-wider">{t("candidates.sign.fields")}</div>
 
-            {/* Saved Signatures Section */}
             {savedSignatures.length > 0 && (
               <div className="mb-6">
                 <div className="text-xs font-semibold text-muted-foreground mb-2">{t("candidates.sign.saved_signatures")}</div>
-                <Button
-                  variant="outline"
-                  className="w-full mb-2"
-                  onClick={() => setShowSavedSignatures(true)}
-                >
+                <Button variant="outline" className="w-full mb-2" onClick={() => setShowSavedSignatures(true)}>
                   <PenLine className="mr-2 h-4 w-4" />
-                  {t("candidates.sign.use_saved")} ({savedSignatures.length})
+                  <p className="text-xs">{t("candidates.sign.use_saved")} </p>
                 </Button>
               </div>
             )}
@@ -342,9 +537,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                   <div
                     key={field.type}
                     className="flex items-center gap-3 px-3 py-3 rounded-lg border bg-card hover:bg-accent/50 cursor-grab select-none transition-all shadow-sm hover:shadow-md mb-2"
-                    onClick={() => {
-                      if (field.type === "signature") setShowSignaturePad(true)
-                    }}
+                    onClick={() => { if (field.type === "signature") setShowSignaturePad(true) }}
                     draggable
                     onDragStart={() => setDraggingField(field.type)}
                   >
@@ -365,11 +558,9 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         )}
       </div>
 
-      {/* Signature Pad Modal */}
-      {/* Signature Pad Modal */}
       {showSignaturePad && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-zinc-950 rounded-xl shadow-2xl p-6 relative w-full max-w-lg mx-4">
+          <div className="bg-card rounded-xl shadow-2xl p-6 relative w-full max-w-lg mx-4 border">
             <button className="absolute top-4 right-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" onClick={() => setShowSignaturePad(false)}>&times;</button>
             <div className="mb-4">
               <h2 className="text-xl font-bold">Create Signature</h2>
@@ -377,6 +568,10 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
             </div>
             <SignaturePad onSignatureCreate={(type, value) => {
               setSignatures(prev => {
+                const hasPlaceholders = prev.some(s => s.value === "");
+                if (hasPlaceholders) {
+                  return prev.map(s => s.value === "" ? { ...s, type, value } : s);
+                }
                 const filtered = prev.filter(s => s.value !== "")
                 return [...filtered, { type, value, placement: { x: 50, y: 50, page: currentPage } }]
               })
@@ -386,28 +581,22 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         </div>
       )}
 
-      {/* Saved Signatures Modal */}
       <Dialog open={showSavedSignatures} onOpenChange={setShowSavedSignatures}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("candidates.sign.modal.select_saved")}</DialogTitle>
             <DialogDescription>{t("candidates.sign.modal.choose_saved")}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto p-1">
             {savedSignatures.map((sig: any) => (
-              <div
-                key={sig.id}
-                className="border rounded-lg p-4 cursor-pointer hover:border-primary transition-colors"
-                onClick={() => handleAddSavedSignature(sig.value)}
-              >
-                <img src={sig.value} alt="Signature" className="w-full h-24 object-contain" />
+              <div key={sig.id} className="border rounded-lg p-4 cursor-pointer hover:border-primary bg-card hover:bg-accent transition-colors shadow-sm" onClick={() => handleAddSavedSignature(sig.value)}>
+                <img src={sig.value} alt="Signature" className="w-full h-24 object-contain dark:invert" />
               </div>
             ))}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>

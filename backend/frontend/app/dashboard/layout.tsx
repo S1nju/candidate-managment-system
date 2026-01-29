@@ -14,7 +14,7 @@ export default function DashboardLayout({
         <DashboardSidebar />
         <SidebarInset>
           <DashboardHeader />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="flex-1 p-4 md:p-6 h-full">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </AuthGuard>

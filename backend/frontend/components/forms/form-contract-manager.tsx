@@ -11,6 +11,7 @@ import axios from "@/lib/axios"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ContractLayoutEditor } from "./contract-layout-editor"
+import { useLanguage } from "@/context/language-context"
 
 interface Position {
     x: number
@@ -20,7 +21,7 @@ interface Position {
 
 interface PlaceholderMapping {
     placeholder: string
-    source: 'form_field' | 'candidate_data' | 'didit_data'
+    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system'
     field_name: string
     position?: Position
 }
@@ -47,6 +48,7 @@ interface FormContractManagerProps {
 }
 
 export function FormContractManager({ formId, fields }: FormContractManagerProps) {
+    const { t } = useLanguage()
     const { toast } = useToast()
     const [contracts, setContracts] = useState<Contract[]>([])
     const [loading, setLoading] = useState(true)
@@ -145,19 +147,19 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div className="space-y-1">
-                    <h3 className="text-lg font-medium">Auto-Generated Contracts</h3>
-                    <p className="text-sm text-muted-foreground">Attach documents that will be automatically generated upon submission.</p>
+                    <h3 className="text-lg font-medium">{t("forms.contracts.title")}</h3>
+                    <p className="text-sm text-muted-foreground">{t("forms.contracts.subtitle")}</p>
                 </div>
                 {!adding && (
                     <Button type="button" variant="outline" size="sm" onClick={() => setAdding(true)}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Contract
+                        {t("forms.contracts.add")}
                     </Button>
                 )}
             </div>
 
             {adding && (
-                <Card className="border-dashed h-40 flex flex-col items-center justify-center p-6 bg-slate-50">
+                <Card className="border-dashed h-40 flex flex-col items-center justify-center p-6 bg-muted/30">
                     <input type="file" id="new-template" className="hidden" accept=".pdf,.docx" onChange={handleFileUpload} />
                     <Label htmlFor="new-template" className="cursor-pointer flex flex-col items-center gap-2">
                         <Upload className="h-8 w-8 text-primary" />
@@ -186,15 +188,16 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
                 <ContractLayoutEditor
                     fileUrl={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${editingContract.id}/template`.replace('//api', '/api')}
                     mappings={editingContract.placeholders}
+                    formFields={fields}
                     onSave={handleLayoutSave}
                     onClose={() => setEditingContract(null)}
                 />
             )}
 
             {contracts.length === 0 && !adding && (
-                <div className="text-center p-12 border rounded-lg bg-white box-shadow-sm">
-                    <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500 font-medium">No contracts attached to this form yet.</p>
+                <div className="text-center p-12 border rounded-lg bg-card shadow-sm">
+                    <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground font-medium">{t("forms.contracts.no_contracts")}</p>
                 </div>
             )}
         </div>
@@ -209,16 +212,17 @@ function ContractItem({ formId, contract, formFields, onDelete, onUpdateMapping,
     onUpdateMapping: (mapping: PlaceholderMapping[]) => void,
     onEditLayout: () => void
 }) {
+    const { t } = useLanguage()
     const [isEditing, setIsEditing] = useState(false)
     const [mappings, setMappings] = useState<PlaceholderMapping[]>(contract.placeholders || [])
     const [newPlaceholder, setNewPlaceholder] = useState("")
 
     const addPlaceholder = () => {
         if (!newPlaceholder) return
-        if (mappings.find(m => m.placeholder === newPlaceholder)) {
-            alert("Placeholder already exists")
-            return
-        }
+        // if (mappings.find(m => m.placeholder === newPlaceholder)) {
+        //     alert("Placeholder already exists")
+        //     return
+        // }
         setMappings([...mappings, { placeholder: newPlaceholder, source: 'form_field', field_name: '', position: undefined }])
         setNewPlaceholder("")
     }
@@ -234,26 +238,26 @@ function ContractItem({ formId, contract, formFields, onDelete, onUpdateMapping,
     }
 
     return (
-        <Card className="group overflow-hidden">
-            <CardHeader className="p-4 bg-slate-50 border-b flex flex-row items-center justify-between">
+        <Card className="group overflow-hidden bg-card transition-all">
+            <CardHeader className="p-4 bg-muted/30 border-b flex flex-row items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-white border rounded flex items-center justify-center">
+                    <div className="h-10 w-10 bg-background border rounded flex items-center justify-center">
                         <FileText className="h-5 w-5 text-blue-500" />
                     </div>
                     <div>
                         <CardTitle className="text-base truncate max-w-[200px]">{contract.name}</CardTitle>
-                        <CardDescription className="text-xs">Contract Template</CardDescription>
+                        <CardDescription className="text-xs">{t("forms.contracts.template")}</CardDescription>
                     </div>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="h-8" asChild>
                         <a href={`${axios.defaults.baseURL}/api/forms/${formId}/contracts/${contract.id}/template`} download>
                             <Upload className="h-3 w-3 mr-1 rotate-180" />
-                            Template
+                            {t("forms.contracts.template")}
                         </a>
                     </Button>
                     <Button variant="outline" size="sm" className="h-8" onClick={onEditLayout}>
-                        Edit Layout
+                        {t("forms.contracts.edit_layout")}
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditing(!isEditing)}>
                         <Settings2 className="h-4 w-4" />
@@ -266,72 +270,106 @@ function ContractItem({ formId, contract, formFields, onDelete, onUpdateMapping,
             {isEditing && (
                 <CardContent className="p-4 space-y-4 animate-in slide-in-from-top-2">
                     <div className="space-y-2">
-                        <Label className="text-xs uppercase font-bold text-muted-foreground">Dynamic Placeholders Mapping</Label>
-                        <p className="text-xs text-muted-foreground p-2 bg-blue-50 border border-blue-100 rounded">
+                        <Label className="text-xs uppercase font-bold text-muted-foreground">{t("forms.contracts.mapping_title")}</Label>
+                        <p className="text-xs text-muted-foreground p-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded">
                             Mapping placeholders from your template (e.g. <code>{"{{candidate_name}}"}</code>) to form or verified data.
                         </p>
 
                         <div className="space-y-3 mt-4">
-                            {mappings.map((mapping, idx) => (
-                                <div key={idx} className="flex gap-2 items-center">
-                                    <div className="w-1/3">
-                                        <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border">{"{{"}{mapping.placeholder}{"}}"}</code>
+                            {Array.from(new Set(mappings.map(m => m.placeholder))).map((placeholderName) => {
+                                const mapping = mappings.find(m => m.placeholder === placeholderName)!;
+                                // Count instances
+                                const instanceCount = mappings.filter(m => m.placeholder === placeholderName && m.position).length;
+
+                                return (
+                                    <div key={placeholderName} className="flex gap-2 items-center">
+                                        <div className="w-1/3 flex flex-col">
+                                            <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded border self-start">{"{{"}{placeholderName}{"}}"}</code>
+                                            {instanceCount > 0 && (
+                                                <span className="text-[9px] text-blue-500 font-medium ml-1">
+                                                    {instanceCount} {instanceCount === 1 ? 'instance placed' : 'instances placed'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <Select
+                                            value={mapping.source}
+                                            onValueChange={(val: any) => {
+                                                setMappings(prev => prev.map(m =>
+                                                    m.placeholder === placeholderName ? { ...m, source: val, field_name: '' } : m
+                                                ))
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-32 h-8 text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="form_field">Form Field</SelectItem>
+                                                <SelectItem value="didit_data">Verified Data</SelectItem>
+                                                <SelectItem value="candidate_data">Internal Data</SelectItem>
+                                                <SelectItem value="system">System Tool</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select
+                                            value={mapping.field_name}
+                                            onValueChange={(val) => {
+                                                setMappings(prev => prev.map(m =>
+                                                    m.placeholder === placeholderName ? { ...m, field_name: val } : m
+                                                ))
+                                            }}
+                                        >
+                                            <SelectTrigger className="flex-1 h-8 text-xs">
+                                                <SelectValue placeholder="Select target field..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {mapping.source === 'form_field' && formFields.map(f => (
+                                                    <SelectItem key={f.name} value={f.name}>{f.label}</SelectItem>
+                                                ))}
+                                                {mapping.source === 'didit_data' && [
+                                                    { id: 'full_name', label: 'Full Name' },
+                                                    { id: 'date_of_birth', label: 'Date of Birth' },
+                                                    { id: 'nationality', label: 'Nationality' },
+                                                    { id: 'issuing_state', label: 'Issuing State' }
+                                                ].map(f => (
+                                                    <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                                                ))}
+                                                {mapping.source === 'candidate_data' && [
+                                                    { id: 'created_at', label: 'Submission Date' },
+                                                    { id: 'id', label: 'Candidate ID' }
+                                                ].map(f => (
+                                                    <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                                                ))}
+                                                {mapping.source === 'system' && [
+                                                    { id: 'signature', label: 'Candidate Signature' },
+                                                    { id: 'date', label: 'Current Date' },
+                                                    { id: 'text', label: 'Custom Text' }
+                                                ].map(f => (
+                                                    <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-destructive"
+                                            onClick={() => {
+                                                setMappings(prev => prev.filter(m => m.placeholder !== placeholderName))
+                                            }}
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
                                     </div>
-                                    <Select
-                                        value={mapping.source}
-                                        onValueChange={(val: any) => updatePlaceholder(idx, { source: val, field_name: '' })}
-                                    >
-                                        <SelectTrigger className="w-32 h-8 text-xs">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="form_field">Form Field</SelectItem>
-                                            <SelectItem value="didit_data">Verified Data</SelectItem>
-                                            <SelectItem value="candidate_data">Internal Data</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-
-                                    <Select
-                                        value={mapping.field_name}
-                                        onValueChange={(val) => updatePlaceholder(idx, { field_name: val })}
-                                    >
-                                        <SelectTrigger className="flex-1 h-8 text-xs">
-                                            <SelectValue placeholder="Select target field..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {mapping.source === 'form_field' && formFields.map(f => (
-                                                <SelectItem key={f.name} value={f.name}>{f.label}</SelectItem>
-                                            ))}
-                                            {mapping.source === 'didit_data' && [
-                                                { id: 'full_name', label: 'Full Name' },
-                                                { id: 'date_of_birth', label: 'Date of Birth' },
-                                                { id: 'nationality', label: 'Nationality' },
-                                                { id: 'issuing_state', label: 'Issuing State' }
-                                            ].map(f => (
-                                                <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
-                                            ))}
-                                            {mapping.source === 'candidate_data' && [
-                                                { id: 'created_at', label: 'Submission Date' },
-                                                { id: 'id', label: 'Candidate ID' }
-                                            ].map(f => (
-                                                <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removePlaceholder(idx)}>
-                                        <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
-                        <div className="flex gap-2 mt-4 items-end bg-slate-50 p-3 rounded border border-dashed">
+                        <div className="flex gap-2 mt-4 items-end bg-muted/30 p-3 rounded border border-dashed">
                             <div className="flex-1 space-y-1">
-                                <Label className="text-[10px]">Placeholder in Document (without braches)</Label>
+                                <Label className="text-[10px]">Placeholder in Document (without branches)</Label>
                                 <Input
                                     placeholder="e.g. candidate_name"
-                                    className="h-8 text-xs"
+                                    className="h-8 text-xs bg-background"
                                     value={newPlaceholder}
                                     onChange={(e) => setNewPlaceholder(e.target.value)}
                                 />

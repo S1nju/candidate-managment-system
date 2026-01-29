@@ -12,8 +12,10 @@ import { FormBuilder, FormField } from "@/components/forms/form-builder"
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useLanguage } from "@/context/language-context"
 
 export default function NewFormPage() {
+    const { t } = useLanguage()
     const router = useRouter()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
@@ -60,27 +62,28 @@ export default function NewFormPage() {
         <div className="max-w-4xl mx-auto space-y-6">
             <Link href="/dashboard/forms" className="flex items-center text-sm text-muted-foreground hover:text-primary">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Forms
+                {t("common.back")}
             </Link>
 
             <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Create New Form</h1>
+                <h1 className="text-3xl font-bold">{t("forms.new")}</h1>
                 <Button onClick={handleSubmit} disabled={loading} className="flex items-center gap-2">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Save Form
+                    {t("forms.save_form")}
                 </Button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-lg shadow-sm border">
+            <form onSubmit={handleSubmit} className="space-y-8 bg-card p-8 rounded-lg shadow-sm border">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="title">Form Title</Label>
+                            <Label htmlFor="title">{t("forms.table.title")}</Label>
                             <Input
                                 id="title"
-                                placeholder="e.g. Developer Application 2024"
+                                placeholder="..."
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
+                                className="bg-background"
                             />
                         </div>
 
@@ -88,31 +91,32 @@ export default function NewFormPage() {
                             <Label htmlFor="description">Description (Optional)</Label>
                             <Textarea
                                 id="description"
-                                placeholder="Briefly describe the purpose of this form..."
+                                placeholder="..."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
+                                className="bg-background"
                             />
                         </div>
                     </div>
 
                     <div className="space-y-6 flex flex-col justify-between">
                         <div className="space-y-2">
-                            <Label htmlFor="status">Initial Status</Label>
+                            <Label htmlFor="status">{t("forms.table.status")}</Label>
                             <Select value={status} onValueChange={(val) => setStatus(val)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
+                                <SelectTrigger className="bg-background">
+                                    <SelectValue placeholder="..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="draft">Draft</SelectItem>
-                                    <SelectItem value="active">Active (Visible to public)</SelectItem>
-                                    <SelectItem value="disabled">Disabled</SelectItem>
+                                    <SelectItem value="draft">{t("forms.status_draft")}</SelectItem>
+                                    <SelectItem value="active">{t("forms.status_active")}</SelectItem>
+                                    <SelectItem value="disabled">{t("forms.status_disabled")}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md border">
                             <div className="space-y-0.5">
-                                <Label className="text-base">Require Identity Verification (KYC)</Label>
+                                <Label className="text-base font-semibold">Require Identity Verification (KYC)</Label>
                                 <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
                             </div>
                             <Switch checked={kycEnabled} onCheckedChange={setKycEnabled} />
@@ -120,7 +124,7 @@ export default function NewFormPage() {
                     </div>
                 </div>
 
-                <hr />
+                <hr className="dark:border-slate-800" />
 
                 <FormBuilder onChange={setFields} />
             </form>

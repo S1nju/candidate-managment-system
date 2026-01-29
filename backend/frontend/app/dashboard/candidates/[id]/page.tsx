@@ -9,7 +9,9 @@ import {
   UserIcon, Mail, Phone, Calendar, MapPin,
   FileText, Briefcase, UserCheck, Activity,
   AlertCircle, CheckCircle2, FileCheck, PenToolIcon,
-  Edit, Save, X
+  Edit, Save, X, Download, Eye, ExternalLink, ShieldCheck,
+  ChevronRight,
+  Trash2
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,116 +29,143 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const { t } = useLanguage();
   const { toast } = useToast();
+
   const [isEmailOpen, setIsEmailOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState<any>({})
-  const { data: candidate, error, isLoading, mutate } = useSWR(`/api/candidates/${id}`)
+  const [dynamicForm, setDynamicForm] = useState<Record<string, any>>({})
+  const [isSaving, setIsSaving] = useState(false)
 
-  useEffect(() => {
-    if (candidate) {
-      setEditForm({
-        name: candidate.name,
-        email: candidate.email,
-        phone: candidate.phone,
-        dob: candidate.dob,
-        nationality: candidate.nationality,
-        social_security_number: candidate.social_security_number,
-        gender: candidate.gender,
-        address: candidate.address,
-        emergency_phone: candidate.emergency_phone,
-        position: candidate.position,
-        contract_type: candidate.contract_type,
-        recruitment_city: candidate.recruitment_city,
-        animator_name: candidate.animator_name,
-        product_justcost: candidate.product_justcost,
-      })
-    }
-  }, [candidate])
+  const { data: candidate, error, isLoading, mutate } = useSWR(`/api/candidates/${id}`)
 
   const { data: kycData, isLoading: kycLoading } = useSWR(
     candidate?.didit_session_id ? `/api/candidates/didit-decision/${candidate.didit_session_id}` : null
   )
 
+  // Initialize form data from candidate.data
+  useEffect(() => {
+    if (candidate?.data) {
+      setDynamicForm(candidate.data)
+    }
+  }, [candidate])
+
   const handleUpdate = async () => {
+    setIsSaving(true)
     try {
-      await axios.put(`/api/candidates/${id}`, editForm)
-      toast({ title: "Candidate updated successfully" })
+      await axios.put(`/api/candidates/${id}`, {
+        data: dynamicForm
+      })
+      toast({ title: "Success", description: "Candidate data updated successfully" })
       setIsEditing(false)
       mutate()
     } catch (err: any) {
       console.error("Update failed", err)
       toast({
-        title: "Failed to update candidate",
-        description: err.response?.data?.message || err.message,
+        title: "Error",
+        description: err.response?.data?.message || "Failed to update candidate",
         variant: "destructive"
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
+  const handleFieldChange = (key: string, value: any) => {
+    setDynamicForm(prev => ({
+      ...prev,
+      [key]: value
+    }))
+  }
+
   if (isLoading) {
-    return <div className="p-8 space-y-4">
-      <Skeleton className="h-12 w-1/3" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
+    return (
+      <div className="p-8 space-y-4">
+        <Skeleton className="h-12 w-1/3" />
+        <Skeleton className="h-[500px] w-full" />
       </div>
-    </div>
+    )
   }
 
   if (error || !candidate) return <div className="p-8 text-red-500">{t("common.error")}</div>
 
   const isSigned = !!(candidate.signature_id || candidate.contract_status?.toLowerCase() === 'signed');
 
+  // Separate data into text fields and file/image fields
+  const textFields: [string, any][] = []
+  const mediaFields: [string, any][] = []
+
+  // Ensure candidate.data exists
+  const rawData = candidate.data || {}
+
+  Object.entries(dynamicForm).forEach(([key, value]) => {
+    // Skip internal/meta keys if any
+    const skipKeys = ['verified_data', 'rejection_reason', 'rejected_at', 'rejected_by'];
+    if (skipKeys.includes(key)) return;
+
+    const isFile = value && typeof value === 'object' && (value as any).path;
+    if (isFile) {
+      mediaFields.push([key, value]);
+    } else {
+      textFields.push([key, value]);
+    }
+  });
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+    <div className="flex flex-col h-full bg-slate-50/50">
+      {/* Simple Header */}
+      <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 ">
+        <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{candidate.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{candidate.name}</h1>
             <Badge
-              variant={isSigned ? "default" : candidate.contract_status === 'rejected' ? "destructive" : "secondary"}
-              className={isSigned ? "bg-emerald-600 hover:bg-emerald-700" : candidate.contract_status === 'rejected' ? "" : ""}
+              variant={isSigned ? "outline" : candidate.contract_status === 'rejected' ? "destructive" : "secondary"}
+              className={isSigned ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}
             >
-              {isSigned ? <><CheckCircle2 className="w-3 h-3 mr-1" /> {t("candidates.detail.contract_signed")}</> :
+              {isSigned ? <><ShieldCheck className="w-3 h-3 mr-1" /> {t("candidates.detail.contract_signed")}</> :
                 candidate.contract_status === 'rejected' ? t("candidates.detail.contract_rejected") :
                   t("candidates.detail.pending_signature")}
             </Badge>
           </div>
-          <p className="text-muted-foreground mt-1 flex items-center gap-2">
-            <Briefcase className="w-4 h-4" /> {candidate.position || "No position specified"}
-            <span className="text-slate-300">|</span>
-            {candidate.contract_type || "No contract type"}
-            {candidate.form && (
-              <>
-                <span className="text-slate-300">|</span>
-                <Badge variant="outline" className="font-normal border-blue-200 text-blue-700 bg-blue-50">
-                  Form: {candidate.form.title}
-                </Badge>
-              </>
-            )}
-          </p>
         </div>
-        <div className="flex gap-2">
-          {(!isSigned && candidate.contract_status === 'pending' && candidate.form?.contracts?.length > 0) ? (
+
+        <div className="flex items-center gap-2">
+          {(!isSigned && candidate.contract_status === 'pending') ? (
             <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
-              <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
-                <PenToolIcon className="w-4 h-4 mr-2" />
+              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95 text-xs h-9">
+                <PenToolIcon className="w-3.5 h-3.5 mr-2" />
                 {t("candidates.detail.sign_contract")}
               </Button>
             </Link>
-          ) : (isSigned || candidate.contract_status === 'signed') && (
+          ) : (
             <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
-              <Button variant="outline">
-                <FileCheck className="w-4 h-4 mr-2" />
+              <Button variant="outline" className="text-xs h-9 border-slate-200">
+                <Eye className="w-3.5 h-3.5 mr-2" />
                 {t("candidates.detail.view_contract")}
               </Button>
             </Link>
           )}
-          <Button variant="outline" onClick={() => setIsEmailOpen(true)}>
-            <Mail className="w-4 h-4 mr-2" />
-            Email Candidate
+
+          <Button variant="outline" className="text-xs h-9 border-slate-200" onClick={() => setIsEmailOpen(true)}>
+            <Mail className="w-3.5 h-3.5 mr-2" />
+            Email
           </Button>
+
+          <Separator orientation="vertical" className="h-6 mx-1" />
+
+          {!isEditing ? (
+            <Button variant="secondary" className="text-xs h-9" onClick={() => setIsEditing(true)}>
+              <Edit className="w-3.5 h-3.5 mr-2" />
+              Edit Data
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" className="text-xs h-9" onClick={() => setIsEditing(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-xs h-9" onClick={handleUpdate} disabled={isSaving}>
+                {isSaving ? "Saving..." : <><Save className="w-3.5 h-3.5 mr-2" /> Save Changes</>}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -146,459 +175,295 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         recipients={[candidate.email]}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Personal Info */}
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2"><UserIcon className="w-5 h-5 text-blue-500" /> {t("candidates.detail.personal_info")}</CardTitle>
-              <div className="flex gap-2">
-                {isEditing ? (
-                  <>
-                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setIsEditing(false)}>
-                      <X className="h-3.5 w-3.5 mr-1" /> Cancel
-                    </Button>
-                    <Button size="sm" className="h-8 text-xs bg-blue-600 hover:bg-blue-700" onClick={handleUpdate}>
-                      <Save className="h-3.5 w-3.5 mr-1" /> Save
-                    </Button>
-                  </>
-                ) : (
-                  <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setIsEditing(true)}>
-                    <Edit className="h-3.5 w-3.5 mr-1" /> Edit
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {isEditing ? (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Full Name</Label>
-                    <Input size={1} className="h-9" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Email</Label>
-                    <Input size={1} className="h-9" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Phone</Label>
-                    <Input size={1} className="h-9" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Date of Birth</Label>
-                    <Input size={1} type="date" className="h-9" value={editForm.dob ? format(new Date(editForm.dob), 'yyyy-MM-dd') : ''} onChange={(e) => setEditForm({ ...editForm, dob: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Nationality</Label>
-                    <Input size={1} className="h-9" value={editForm.nationality} onChange={(e) => setEditForm({ ...editForm, nationality: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">SSN</Label>
-                    <Input size={1} className="h-9" value={editForm.social_security_number} onChange={(e) => setEditForm({ ...editForm, social_security_number: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Gender</Label>
-                    <Select value={editForm.gender} onValueChange={(val) => setEditForm({ ...editForm, gender: val })}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Emergency Phone</Label>
-                    <Input size={1} className="h-9" value={editForm.emergency_phone} onChange={(e) => setEditForm({ ...editForm, emergency_phone: e.target.value })} />
-                  </div>
-                  <div className="md:col-span-2 space-y-1.5">
-                    <Label className="text-xs">Address</Label>
-                    <Input size={1} className="h-9" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
-                  </div>
-                  <Separator className="md:col-span-2 my-2" />
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Position</Label>
-                    <Input size={1} className="h-9" value={editForm.position} onChange={(e) => setEditForm({ ...editForm, position: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Contract Type</Label>
-                    <Input size={1} className="h-9" value={editForm.contract_type} onChange={(e) => setEditForm({ ...editForm, contract_type: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Recruitment City</Label>
-                    <Input size={1} className="h-9" value={editForm.recruitment_city} onChange={(e) => setEditForm({ ...editForm, recruitment_city: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Animator Name</Label>
-                    <Input size={1} className="h-9" value={editForm.animator_name} onChange={(e) => setEditForm({ ...editForm, animator_name: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Product Justcost</Label>
-                    <Input size={1} className="h-9" value={editForm.product_justcost} onChange={(e) => setEditForm({ ...editForm, product_justcost: e.target.value })} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <InfoItem
-                    label="Full Name"
-                    value={candidate.name}
-                    icon={<UserIcon className="w-4 h-4" />}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.email")}
-                    value={candidate.email}
-                    icon={<Mail className="w-4 h-4" />}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.phone")}
-                    value={candidate.phone}
-                    icon={<Phone className="w-4 h-4" />}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.dob")}
-                    value={kycData?.id_verifications?.[0]?.date_of_birth || (candidate.dob ? format(new Date(candidate.dob), 'PP') : '-')}
-                    icon={<Calendar className="w-4 h-4" />}
-                    verified={!!kycData?.id_verifications?.[0]?.date_of_birth}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.nationality")}
-                    value={kycData?.id_verifications?.[0]?.nationality || candidate.nationality}
-                    icon={<MapPin className="w-4 h-4" />}
-                    verified={!!kycData?.id_verifications?.[0]?.nationality}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.ssn")}
-                    value={candidate.social_security_number}
-                    icon={<Activity className="w-4 h-4" />}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.gender")}
-                    value={candidate.gender}
-                    icon={<UserCheck className="w-4 h-4" />}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.address")}
-                    value={kycData?.id_verifications?.[0]?.formatted_address || kycData?.id_verifications?.[0]?.address || candidate.address}
-                    colSpan={2}
-                    icon={<MapPin className="w-4 h-4" />}
-                    verified={!!(kycData?.id_verifications?.[0]?.formatted_address || kycData?.id_verifications?.[0]?.address)}
-                  />
-                  <InfoItem
-                    label={t("candidates.detail.labels.emergency_contact")}
-                    value={candidate.emergency_phone}
-                    colSpan={2}
-                    icon={<AlertCircle className="w-4 h-4" />}
-                  />
-                </>
-              )}
-            </CardContent>
-          </Card>
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5 text-orange-500" /> {t("candidates.detail.employment_details")}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {isEditing ? (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Position</Label>
-                    <Input size={1} className="h-9" value={editForm.position} onChange={(e) => setEditForm({ ...editForm, position: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Contract Type</Label>
-                    <Input size={1} className="h-9" value={editForm.contract_type} onChange={(e) => setEditForm({ ...editForm, contract_type: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Start Date</Label>
-                    <Input size={1} type="date" className="h-9" value={editForm.start_date ? format(new Date(editForm.start_date), 'yyyy-MM-dd') : ''} onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Recruitment City</Label>
-                    <Input size={1} className="h-9" value={editForm.recruitment_city} onChange={(e) => setEditForm({ ...editForm, recruitment_city: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Animator Name</Label>
-                    <Input size={1} className="h-9" value={editForm.animator_name} onChange={(e) => setEditForm({ ...editForm, animator_name: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Product Justcost</Label>
-                    <Input size={1} className="h-9" value={editForm.product_justcost} onChange={(e) => setEditForm({ ...editForm, product_justcost: e.target.value })} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <InfoItem label={t("candidates.detail.labels.position")} value={candidate.position} />
-                  <InfoItem label={t("candidates.detail.labels.contract_type")} value={candidate.contract_type} />
-                  <InfoItem label={t("candidates.detail.labels.start_date")} value={candidate.start_date ? format(new Date(candidate.start_date), 'PP') : '-'} />
-                  <InfoItem label={t("candidates.detail.labels.recruitment_city")} value={candidate.recruitment_city} />
-                  <InfoItem label={t("candidates.detail.labels.animator")} value={candidate.animator_name} />
-                  <InfoItem label={t("candidates.detail.labels.product")} value={candidate.product_justcost} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {candidate.data && Object.keys(candidate.data).length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-500" /> Dynamic Form Data</CardTitle>
+          {/* LEFT COLUMN: TEXT DATA */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-none shadow-sm ring-1 ring-slate-100">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <UserIcon className="w-5 h-5 text-blue-500" />
+                  Candidate Profile Details
+                </CardTitle>
+                <CardDescription>
+                  All dynamic data submitted through the application form.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(candidate.data).map(([key, value]) => {
-                    const displayedKeys = [
-                      'name', 'full_name', 'email', 'phone', 'dob', 'nationality',
-                      'ssn', 'social_security_number', 'gender', 'address',
-                      'emergency_phone', 'position', 'contract_type', 'start_date',
-                      'recruitment_city', 'animator_name', 'product_justcost',
-                      'didit_session_id'
-                    ];
-                    if (displayedKeys.includes(key) || (value && typeof value === 'object' && (value as any).path)) return null;
-                    return (
-                      <div key={key} className="border-b pb-2">
-                        <p className="text-xs font-medium text-muted-foreground uppercase">{key.replace(/_/g, ' ')}</p>
-                        <p className="text-sm font-semibold">{String(value)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Attachments Section */}
-          {candidate.data && Object.values(candidate.data).some((v: any) => v && typeof v === 'object' && (v as any).path) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-purple-500" /> Uploaded Attachments</CardTitle>
-                <CardDescription>Files submitted via dynamic application forms</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {Object.entries(candidate.data).map(([key, value]: [string, any]) => {
-                    if (!value || typeof value !== 'object' || !value.path) return null;
-                    const isImage = value.type?.startsWith('image/');
-
-                    // Determine if it's a legacy public path or a new secure path
-                    const path = value.path;
-                    const isLegacy = path.startsWith('/storage/');
-
-                    const fullPath = isLegacy
-                      ? `${axios.defaults.baseURL}${path}`
-                      : `${axios.defaults.baseURL}/api/candidates/files?path=${encodeURIComponent(path)}`;
-
-                    return (
-                      <div key={key} className="group relative border rounded-lg p-2 hover:bg-slate-50 transition-colors">
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2 px-1">{key.replace(/_/g, ' ')}</p>
-                        <div className="aspect-square rounded border bg-white overflow-hidden flex items-center justify-center mb-2">
-                          {isImage ? (
-                            <img src={fullPath} alt={value.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <FileText className="h-10 w-10 text-blue-500" />
-                          )}
-                        </div>
-                        <div className="px-1">
-                          <p className="text-xs font-medium truncate" title={value.name}>{value.name}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => window.open(fullPath, '_blank')}>
-                              View
-                            </Button>
-                            <a href={fullPath} download={value.name} className="text-[10px] text-blue-600 hover:underline">
-                              Download
-                            </a>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  {textFields.length > 0 ? (
+                    textFields.map(([key, value]) => (
+                      <div key={key} className="space-y-1.5">
+                        <Label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                          {key.replace(/_/g, ' ')}
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            value={String(value || '')}
+                            onChange={(e) => handleFieldChange(key, e.target.value)}
+                            className="h-9 focus:ring-1 focus:ring-blue-500 bg-background"
+                          />
+                        ) : (
+                          <div className="h-9 flex items-center px-3 bg-slate-50/50 dark:bg-slate-900/50 rounded-md border border-transparent text-sm font-semibold text-foreground">
+                            {String(value || '-')}
                           </div>
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Generated Contracts Section */}
-          {candidate.generated_contracts && candidate.generated_contracts.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><FileCheck className="w-5 h-5 text-emerald-500" /> Auto-Generated Documents</CardTitle>
-                <CardDescription>Contracts automatically created from form templates</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {candidate.generated_contracts.map((gc: any) => (
-                    <div key={gc.id} className="flex items-center justify-between p-3 border rounded-lg bg-emerald-50/30 border-emerald-100">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-8 w-8 text-emerald-600" />
-                        <div>
-                          <p className="text-sm font-semibold">{gc.form_contract?.name || "Contract Document"}</p>
-                          <p className="text-[10px] text-muted-foreground">Generated {format(new Date(gc.generated_at), 'PPP p')}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {(() => {
-                          const downloadUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/generated-contracts/${gc.id}/download`;
-                          return (
-                            <>
-                              <Button variant="outline" size="sm" onClick={() => window.open(downloadUrl, '_blank')}>
-                                View PDF
-                              </Button>
-                              <Button size="sm" asChild>
-                                <a href={downloadUrl} download>Download</a>
-                              </Button>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Right Column: Candidate Details */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Photo Card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="flex items-center gap-2"><UserIcon className="w-5 h-5 text-purple-500" /> Photo</CardTitle>
-              {kycData?.id_verifications?.[0]?.portrait_image && (
-                <Badge variant="outline" className="text-[10px] uppercase border-purple-200 text-purple-700 bg-purple-50 font-bold">Verified</Badge>
-              )}
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-              {kycLoading ? (
-                <Skeleton className="w-48 h-48 rounded-lg" />
-              ) : kycData?.id_verifications?.[0]?.portrait_image || candidate.photo_url ? (
-                <img
-                  src={kycData?.id_verifications?.[0]?.portrait_image || candidate.photo_url}
-                  alt={candidate.name}
-                  className="w-48 h-48 object-cover rounded-lg border-2 border-slate-200 dark:border-slate-700 shadow-sm"
-                />
-              ) : (
-                <div className="w-48 h-48 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                  <UserIcon className="w-24 h-24 text-slate-400" />
-                </div>
-              )}
-              {kycData?.id_verifications?.[0]?.document_type && (
-                <p className="text-xs font-medium text-muted-foreground bg-slate-100 px-2 py-1 rounded">
-                  Verified via {kycData.id_verifications[0].document_type}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ID Documents (from Didit) */}
-          {kycData?.id_verifications?.[0] && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm"><FileText className="w-4 h-4 text-blue-500" /> Identification Documents</CardTitle>
-                <Badge variant="outline" className="text-[10px] uppercase border-blue-200 text-blue-700 bg-blue-50 font-bold">Verified</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase text-muted-foreground font-bold">Front Image</p>
-                    <img src={kycData.id_verifications[0].front_image} className="w-full rounded border cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(kycData.id_verifications[0].front_image, '_blank')} />
-                  </div>
-                  {kycData.id_verifications[0].back_image && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] uppercase text-muted-foreground font-bold">Back Image</p>
-                      <img src={kycData.id_verifications[0].back_image} className="w-full rounded border cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(kycData.id_verifications[0].back_image, '_blank')} />
+                    ))
+                  ) : (
+                    <div className="col-span-2 py-12 text-center text-muted-foreground">
+                      <Activity className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                      <p>{t("candidates.detail.no_dynamic_fields")}</p>
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="flex justify-between border-b py-1">
-                    <span className="text-muted-foreground">ID Number</span>
-                    <span className="font-semibold">{kycData.id_verifications[0].document_number}</span>
-                  </div>
-                  <div className="flex justify-between border-b py-1">
-                    <span className="text-muted-foreground">Nationality</span>
-                    <span className="font-semibold">{kycData.id_verifications[0].nationality}</span>
-                  </div>
-                  <div className="flex justify-between border-b py-1">
-                    <span className="text-muted-foreground">Issuing State</span>
-                    <span className="font-semibold">{kycData.id_verifications[0].issuing_state_name}</span>
-                  </div>
-                  <div className="flex justify-between border-b py-1">
-                    <span className="text-muted-foreground">Date of Birth</span>
-                    <span className="font-semibold">{kycData.id_verifications[0].date_of_birth}</span>
-                  </div>
-                  <div className="flex justify-between border-b py-1">
-                    <span className="text-muted-foreground">Address</span>
-                    <span className="font-semibold text-right max-w-[200px]">{kycData.id_verifications[0].formatted_address || kycData.id_verifications[0].address}</span>
-                  </div>
-                </div>
               </CardContent>
             </Card>
-          )}
 
-          {/* Skills Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-blue-500" /> {t("candidates.detail.skills")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {candidate.skills && candidate.skills.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {candidate.skills.map((skill: string, idx: number) => (
-                    <Badge key={idx} variant="secondary" className="px-3 py-1">{skill}</Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("candidates.detail.no_skills")}</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Education Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-green-500" /> {t("candidates.detail.education")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {candidate.education && candidate.education.length > 0 ? (
-                <div className="space-y-3">
-                  {candidate.education.map((edu: any, idx: number) => (
-                    <div key={idx} className="border-l-2 border-blue-500 pl-3">
-                      <p className="font-semibold text-sm">{edu.degree || edu.title}</p>
-                      <p className="text-xs text-muted-foreground">{edu.institution}</p>
-                      {edu.year && <p className="text-xs text-muted-foreground">{edu.year}</p>}
+            {/* Contracts History or similar could go here */}
+            {candidate.generated_contracts?.length > 0 && (
+              <Card className="border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800">
+                <CardHeader>
+                  <CardTitle className="text-base">{t("candidates.detail.document_history")}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {candidate.generated_contracts.map((gc: any) => (
+                    <div key={gc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card group hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-8 h-8 text-blue-100 dark:text-blue-900 fill-blue-50 dark:fill-blue-900/20" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{gc.form_contract?.name || "Contract"}</p>
+                          <p className="text-[10px] text-muted-foreground">{format(new Date(gc.generated_at), 'PPP p')}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={`${axios.defaults.baseURL}/api/generated-contracts/${gc.id}/download`} download className="text-blue-600">
+                          <Download className="w-4 h-4 mr-1" /> PDF
+                        </a>
+                      </Button>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("candidates.detail.no_education")}</p>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* IDENTITY VERIFICATION (DIDIT) */}
+            {kycData && (
+              <Card className="border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800 overflow-hidden">
+                <CardHeader className="bg-slate-50/80 dark:bg-slate-900/80 border-b dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                      <ShieldCheck className="w-5 h-5 text-emerald-500" />
+                      {t("candidates.detail.verification_report")}
+                    </CardTitle>
+                    <Badge className={kycData.status === 'Approved' ? 'bg-emerald-500' : 'bg-yellow-500'}>
+                      {t(`candidates.detail.status.${kycData.status.toLowerCase()}`)}
+                    </Badge>
+                  </div>
+                  <CardDescription>{t("candidates.detail.verified_data")}</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {/* Summary of Checks */}
+                  <div className="flex flex-wrap gap-2 mb-8">
+                    {kycData.features.map((feature: string) => (
+                      <div key={feature} className="flex items-center gap-1.5 bg-card px-2.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight">{feature.replace(/_/g, ' ')}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Main Verified Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* ID Details */}
+                    <div className="space-y-6">
+                      {kycData.id_verifications?.[0] && (
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                          <DetailItem label="Verified Full Name" value={kycData.id_verifications[0].full_name} />
+                          <DetailItem label="Date of Birth" value={kycData.id_verifications[0].date_of_birth} />
+                          <DetailItem label="Nationality" value={kycData.id_verifications[0].issuing_state_name} />
+                          <DetailItem label="Document ID" value={`${kycData.id_verifications[0].document_type} (${kycData.id_verifications[0].document_number})`} />
+                          <DetailItem label="Verified Address" value={kycData.id_verifications[0].formatted_address} colSpan={2} />
+                        </div>
+                      )}
+
+                      {/* AML Alerts */}
+                      {kycData.aml_screenings?.[0]?.total_hits > 0 && (
+                        <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/30 space-y-2">
+                          <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-xs font-bold uppercase">{t("candidates.detail.aml_alert")}</span>
+                          </div>
+                          <p className="text-xs text-red-600 dark:text-red-500">
+                            Detected {kycData.aml_screenings[0].total_hits} hit(s) in PEP/watchlist databases.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Contact Details */}
+                      {kycData.phone_verifications?.[0] && (
+                        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-lg border border-emerald-100 dark:border-emerald-900/30 flex items-center justify-between shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-full">
+                              <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-500" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase">{t("candidates.detail.verified_phone")}</p>
+                              <p className="text-sm font-bold text-foreground">{kycData.phone_verifications[0].full_number}</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-none text-[10px]">VERIFIED</Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ID Images */}
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">{t("candidates.detail.verification_evidence")}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {kycData.id_verifications?.[0]?.front_image && (
+                          <div className="space-y-1.5">
+                            <p className="text-[9px] font-bold text-slate-500 px-1">{t("candidates.detail.id_front")}</p>
+                            <div className="group relative aspect-video rounded-md border bg-muted overflow-hidden cursor-pointer" onClick={() => window.open(kycData.id_verifications[0].front_image, '_blank')}>
+                              <img src={kycData.id_verifications[0].front_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ExternalLink className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {kycData.id_verifications?.[0]?.back_image && (
+                          <div className="space-y-1.5">
+                            <p className="text-[9px] font-bold text-slate-500 px-1">{t("candidates.detail.id_back")}</p>
+                            <div className="group relative aspect-video rounded-md border bg-muted overflow-hidden cursor-pointer" onClick={() => window.open(kycData.id_verifications[0].back_image, '_blank')}>
+                              <img src={kycData.id_verifications[0].back_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ExternalLink className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-3 bg-card rounded-lg border border-slate-100 dark:border-slate-800 flex items-center gap-4 shadow-sm">
+                        {kycData.id_verifications?.[0]?.portrait_image ? (
+                          <img src={kycData.id_verifications[0].portrait_image} className="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-slate-700 shadow-md ring-1 ring-slate-100 dark:ring-slate-800" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                            <UserCheck className="w-6 h-6 text-slate-400" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase">{t("candidates.detail.liveness_check")}</p>
+                          <p className="text-[9px] text-slate-400">Status: {kycData.liveness_checks?.[0]?.status || t("candidates.detail.status.pending")}</p>
+                        </div>
+                        <div className="ml-auto">
+                          <Badge className="bg-emerald-500 h-5 text-[9px] text-white border-none">PASSED</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* IP & Metadata Footer */}
+                  <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-6 opacity-90">
+                    {kycData.ip_analyses?.[0] && (
+                      <>
+                        <DetailItem label="Verification IP" value={kycData.ip_analyses[0].ip_address} />
+                        <DetailItem label="City / Region" value={`${kycData.ip_analyses[0].ip_city}, ${kycData.ip_analyses[0].ip_state}`} />
+                        <DetailItem label="Device Info" value={`${kycData.ip_analyses[0].device_brand} ${kycData.ip_analyses[0].device_model} (${kycData.ip_analyses[0].os_family})`} />
+                        <DetailItem label="Browser" value={kycData.ip_analyses[0].browser_family} />
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-between text-[9px] text-muted-foreground font-mono bg-slate-50 dark:bg-slate-900/50 p-2 rounded border dark:border-slate-800">
+                    <span>DIDIT SESSION: {kycData.session_id}</span>
+                    <span>TIMESTAMP: {format(new Date(kycData.created_at), 'yyyy-MM-dd HH:mm:ss')}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: MEDIA & FILES */}
+          <div className="space-y-6">
+            <Card className="border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800 overflow-hidden">
+              <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b dark:border-slate-800">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileCheck className="w-5 h-5 text-purple-500" />
+                  {t("candidates.detail.attachments")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {mediaFields.length > 0 ? (
+                  <div className="flex flex-col">
+                    {mediaFields.map(([key, value]) => {
+                      const isImage = value.type?.startsWith('image/');
+                      const path = value.path;
+                      const fullPath = `${axios.defaults.baseURL}/api/candidates/files?path=${encodeURIComponent(path)}`;
+
+                      return (
+                        <div key={key} className="p-4 border-b last:border-b-0 dark:border-slate-800 group">
+                          <div className="flex items-center justify-between mb-3">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                              {key.replace(/_/g, ' ')}
+                            </Label>
+                            <div className="flex gap-2">
+
+                              <a href={fullPath} download={value.name} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-blue-600 transition-colors">
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+
+                          <div className="relative aspect-video rounded-lg border bg-muted overflow-hidden flex items-center justify-center">
+                            {isImage ? (
+                              <img src={fullPath} alt={key} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                                <FileText className="w-10 h-10 opacity-50" />
+                                <p className="text-[10px] font-medium max-w-[150px] truncate">{value.name}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center text-muted-foreground">
+                    <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p>{t("candidates.detail.no_attachments")}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-blue-600 dark:bg-blue-700 text-white border-none shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-blue-100 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" /> {t("candidates.detail.quick_help")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-blue-100/90 leading-relaxed">
+                {t("candidates.detail.quick_help_text")}
+              </CardContent>
+            </Card>
+          </div>
+
         </div>
       </div>
     </div>
   )
 }
 
-function InfoItem({ label, value, icon, colSpan = 1, verified = false }: { label: string, value: string | number, icon?: React.ReactNode, colSpan?: number, verified?: boolean }) {
+function DetailItem({ label, value, colSpan = 1 }: { label: string, value: any, colSpan?: number }) {
   return (
-    <div className={colSpan === 2 ? "md:col-span-2" : ""}>
-      <div className="text-sm font-medium text-muted-foreground flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          {icon} {label}
-        </div>
-        {verified && (
-          <Badge variant="outline" className="h-4 text-[8px] px-1 bg-emerald-50 text-emerald-700 border-emerald-200">
-            <CheckCircle2 className="w-2 h-2 mr-0.5" /> Verified
-          </Badge>
-        )}
-      </div>
-      <div className="text-base font-semibold text-slate-800 dark:text-slate-200">
-        {value || "-"}
-      </div>
+    <div className={colSpan === 2 ? "col-span-2" : ""}>
+      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-foreground">{String(value || '-')}</p>
     </div>
   )
 }
+
