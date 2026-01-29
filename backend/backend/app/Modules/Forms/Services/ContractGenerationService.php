@@ -63,8 +63,7 @@ class ContractGenerationService
             $templatePath = storage_path('app/secure/'.$formContract->template_path);
 
             if (! file_exists($templatePath)) {
-                Log::error("Contract Gen: Template file missing at: {$templatePath}");
-                throw new \Exception("Template file not found.");
+                throw new \Exception("Template file not found at: {$templatePath}");
             }
 
             $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
@@ -106,9 +105,7 @@ class ContractGenerationService
                     $renderWidth = $w > 0 ? $w : 50;
 
                     $isImage = false;
-                    $isBase64 = is_string($value) && str_starts_with($value, 'data:image/');
-                    
-                    if ($isImageField || $isBase64 || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
+                    if ($isImageField || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
                         $isImage = true;
                     }
 

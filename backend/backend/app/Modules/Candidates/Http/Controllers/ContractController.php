@@ -142,20 +142,12 @@ class ContractController extends Controller
         }
 
         $candidate->load('form.contracts');
-        
-        if (!$candidate->form) {
-            \Illuminate\Support\Facades\Log::error("Preview failed: Candidate {$candidate->id} has no assigned form.");
-            abort(404, 'Form not assigned to candidate');
-        }
-
         $contract = $candidate->form->contracts->first();
 
         if (! $contract) {
-            \Illuminate\Support\Facades\Log::error("Preview failed: Form {$candidate->form_id} has no contracts.");
-            abort(404, 'No contract found for this form');
+            abort(404, 'No contract found');
         }
 
-        \Illuminate\Support\Facades\Log::info("Generating preview for candidate {$candidate->id} using contract {$contract->id}");
         $pdfContent = $this->generatorService->generateContent($candidate, $contract);
 
         return response($pdfContent)
