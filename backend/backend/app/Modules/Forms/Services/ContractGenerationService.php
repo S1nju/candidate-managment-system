@@ -118,7 +118,10 @@ class ContractGenerationService
                             $pdf->SetXY($x, $y);
                             $pdf->SetFont('helvetica', '', 8);
                             $pdf->SetTextColor(255, 0, 0);
-                            $pdf->Cell($renderWidth, 10, "[Img Missing: {$placeholder}]", 1, 0, 'C');
+                            $isSignature = ($mapping['field_name'] ?? '') === 'signature' || ($mapping['placeholder'] ?? '') === 'signature';
+                            if (! $isSignature) {
+                                $pdf->Cell($renderWidth, 10, "[Img Missing: {$placeholder}]", 1, 0, 'C');
+                            }
                         } else {
                             $foundPath = null;
                             $tempFiles = [];
