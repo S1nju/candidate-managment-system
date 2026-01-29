@@ -6,17 +6,51 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Link as LinkIcon, Eye } from "lucide-react"
+import { Plus, Edit, Link as LinkIcon, Eye, QrCode, Download } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
+import { QRCodeSVG } from "qrcode.react"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 
 export default function FormsPage() {
     const { t } = useLanguage()
     const { data: forms, error, isLoading } = useSWR("/api/forms", () => axios.get("/api/forms").then(res => res.data))
 
+    const [selectedForm, setSelectedForm] = React.useState<any>(null)
+
     const copyToClipboard = (uuid: string) => {
         const url = `${window.location.origin}/apply/${uuid}`
         navigator.clipboard.writeText(url)
         alert("Public link copied to clipboard!")
+    }
+
+    const downloadQRCode = () => {
+        const svg = document.getElementById("qr-code-svg")
+        if (!svg) return
+
+        const svgData = new XMLSerializer().serializeToString(svg)
+        const canvas = document.createElement("canvas")
+        const ctx = canvas.getContext("2d")
+        const img = new Image()
+
+        img.onload = () => {
+            canvas.width = img.width
+            canvas.height = img.height
+            ctx?.drawImage(img, 0, 0)
+            const pngFile = canvas.toDataURL("image/png")
+            const downloadLink = document.createElement("a")
+            downloadLink.download = `form-qr-${selectedForm?.title || "code"}.png`
+            downloadLink.href = pngFile
+            downloadLink.click()
+        }
+
+        img.src = "data:image/svg+xml;base64," + btoa(svgData)
     }
 
     return (
@@ -92,6 +126,15 @@ export default function FormsPage() {
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
                                             </Link>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                title="QR Code"
+                                                onClick={() => setSelectedForm(form)}
+                                                className="text-primary hover:text-primary hover:bg-primary/10"
+                                            >
+                                                <QrCode className="h-4 w-4" />
+                                            </Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -109,6 +152,35 @@ export default function FormsPage() {
                     </Link>
                 </div>
             )}
+
+            <Dialog open={!!selectedForm} onOpenChange={(open) => !open && setSelectedForm(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{selectedForm?.title}</DialogTitle>
+                        <DialogDescription>
+                            {t("forms.qr_description") || "Scan this QR code to access the public form link."}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg border my-4">
+                        <QRCodeSVG
+                            id="qr-code-svg"
+                            value={selectedForm ? `${window.location.origin}/apply/${selectedForm.uuid}` : ""}
+                            size={200}
+                            level="H"
+                            includeMargin={true}
+                        />
+                        <p className="text-xs text-muted-foreground mt-4 break-all text-center">
+                            {selectedForm ? `${window.location.origin}/apply/${selectedForm.uuid}` : ""}
+                        </p>
+                    </div>
+                    <DialogFooter className="sm:justify-center">
+                        <Button onClick={downloadQRCode} className="flex items-center gap-2">
+                            <Download className="h-4 w-4" />
+                            {t("common.download") || "Download PNG"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
