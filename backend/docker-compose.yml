@@ -48,6 +48,10 @@ services:
             - ./certbot/www:/var/www/certbot
         networks:
             - signme-network
+        depends_on:
+            - app
+            - frontend
+            - reverb
 
     certbot:
         image: certbot/certbot
@@ -110,8 +114,6 @@ services:
             - app
             - db
             - redis
-        ports:
-            - "8080:8080"
 
 networks:
     signme-network:
