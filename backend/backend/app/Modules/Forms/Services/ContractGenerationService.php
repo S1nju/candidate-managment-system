@@ -63,7 +63,8 @@ class ContractGenerationService
             $templatePath = storage_path('app/secure/'.$formContract->template_path);
 
             if (! file_exists($templatePath)) {
-                throw new \Exception("Template file not found at: {$templatePath}");
+                Log::error("Contract Gen: Template file missing at: {$templatePath}");
+                throw new \Exception("Template file not found.");
             }
 
             $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
@@ -91,12 +92,8 @@ class ContractGenerationService
                     $placeholder = $mapping['placeholder'];
                     $value = $data[$placeholder] ?? '';
 
-                    // For images, we want to show error even if value is empty
+                    // For images, we want to skip setup if empty
                     $isImageField = (isset($mapping['field_type']) && $mapping['field_type'] === 'image');
-
-                    if (! $value && $value !== '0' && ! $isImageField) {
-                        continue;
-                    }
 
                     $xPercent = $mapping['position']['x'];
                     $yPercent = $mapping['position']['y'];
@@ -109,20 +106,14 @@ class ContractGenerationService
                     $renderWidth = $w > 0 ? $w : 50;
 
                     $isImage = false;
-                    if ($isImageField || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
+                    $isBase64 = is_string($value) && str_starts_with($value, 'data:image/');
+                    
+                    if ($isImageField || $isBase64 || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
                         $isImage = true;
                     }
 
                     if ($isImage) {
-                        if (empty($value)) {
-                            $pdf->SetXY($x, $y);
-                            $pdf->SetFont('helvetica', '', 8);
-                            $pdf->SetTextColor(255, 0, 0);
-                            $isSignature = ($mapping['field_name'] ?? '') === 'signature' || ($mapping['placeholder'] ?? '') === 'signature';
-                            if (! $isSignature) {
-                                $pdf->Cell($renderWidth, 10, "[Img Missing: {$placeholder}]", 1, 0, 'C');
-                            }
-                        } else {
+                        if (! empty($value)) {
                             $foundPath = null;
                             $tempFiles = [];
 
@@ -158,11 +149,6 @@ class ContractGenerationService
                             try {
                                 if ($foundPath) {
                                     $pdf->Image($foundPath, $x, $y, $renderWidth, 0);
-                                } else {
-                                    $pdf->SetXY($x, $y);
-                                    $pdf->SetFont('helvetica', '', 8);
-                                    $pdf->SetTextColor(255, 0, 0);
-                                    $pdf->Cell($renderWidth, 10, "[File Not Found: {$placeholder}]", 1, 0, 'C');
                                 }
                             } catch (\Exception $e) {
                                 Log::error('GenContract: Image embed error: '.$e->getMessage());
@@ -175,10 +161,12 @@ class ContractGenerationService
                             }
                         }
                     } else {
-                        $pdf->SetFont('helvetica', 'B', 12);
-                        $pdf->SetTextColor(0, 0, 0);
-                        $pdf->SetXY($x, $y);
-                        $pdf->Cell(0, 0, (string) $value, 0, 0, 'L');
+                        if ($value || $value === '0') {
+                            $pdf->SetFont('helvetica', 'B', 12);
+                            $pdf->SetTextColor(0, 0, 0);
+                            $pdf->SetXY($x, $y);
+                            $pdf->Cell(0, 0, (string) $value, 0, 0, 'L');
+                        }
                     }
                 }
             }
