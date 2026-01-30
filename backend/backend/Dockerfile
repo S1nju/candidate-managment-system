@@ -43,14 +43,16 @@ RUN composer install --no-dev --optimize-autoloader
 # Permissions
 RUN chown -R www-data:www-data /var/www
 
-# Expose HTTP port (what Dockploy will route to)
-EXPOSE 8000
+# Fix line endings and permissions for entrypoint
+RUN apt-get update && apt-get install -y dos2unix \
+    && dos2unix docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh
 
-# Copy and make entrypoint script executable
-RUN chmod +x /var/www/docker-entrypoint.sh
+# Expose HTTP port
+EXPOSE 8000
 
 # Entrypoint to handle setup
 ENTRYPOINT ["/var/www/docker-entrypoint.sh"]
 
-# Start Laravel directly (passed as $@ to entrypoint)
+# Start Laravel directly
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
