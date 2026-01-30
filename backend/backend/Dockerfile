@@ -1,8 +1,4 @@
-FROM php:8.3-fpm
-
-# Arguments defined in docker-compose.yml
-# ARG user
-# ARG uid
+FROM php:8.3-cli
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,34 +11,40 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     supervisor \
-    nginx
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# PHP extensions
+RUN pecl install redis \
+    && docker-php-ext-enable redis
 
-# Install PHP extensions
-RUN pecl install redis && docker-php-ext-enable redis
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip sockets
+RUN docker-php-ext-install \
+    pdo_mysql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    sockets
 
-# Get latest Composer
+# Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set working directory
+# App directory
 WORKDIR /var/www
 
+# Copy code
 COPY . .
 
+# Install dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Ensure ownership by www-data
+# Permissions
 RUN chown -R www-data:www-data /var/www
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Expose HTTP port (what Dockploy will route to)
+EXPOSE 8000
 
-EXPOSE 9000
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["php-fpm"]
+# Start Laravel directly
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
