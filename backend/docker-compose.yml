@@ -33,35 +33,6 @@ services:
         networks:
             - signme-network
 
-    webserver:
-        image: nginx:alpine
-        container_name: signme-nginx
-        restart: unless-stopped
-        ports:
-            - "80:80"
-            - "443:443"
-        volumes:
-            - ./backend/public:/var/www/public
-            - storage_data:/var/www/storage
-            - ./nginx/conf.d:/etc/nginx/conf.d
-            - ./certbot/conf:/etc/letsencrypt
-            - ./certbot/www:/var/www/certbot
-        networks:
-            - signme-network
-        depends_on:
-            - app
-            - frontend
-            - reverb
-
-    certbot:
-        image: certbot/certbot
-        container_name: signme-certbot
-        volumes:
-            - ./certbot/conf:/etc/letsencrypt
-            - ./certbot/www:/var/www/certbot
-        networks:
-            - signme-network
-
     db:
         image: mysql:8.0
         container_name: signme-db
