@@ -14,26 +14,42 @@ log "Starting entrypoint script..."
 if [ -z "$APP_KEY" ]; then
     log "APP_KEY not found in environment. Checking .env..."
     if [ ! -f .env ]; then
-        touch .env
-        log "Created .env file."
+        echo "APP_KEY=" > .env
+        log "Created new .env with APP_KEY placeholder."
+    elif ! grep -q "APP_KEY=" .env; then
+        echo "APP_KEY=" >> .env
+        log "Added APP_KEY placeholder to existing .env."
     fi
     
-    if grep -q "APP_KEY=" .env && [ -n "$(grep "APP_KEY=base64:" .env)" ]; then
-        log "APP_KEY found in .env file."
-    else
-        log "APP_KEY not found or invalid in .env. Preparing for generation..."
-        if ! grep -q "APP_KEY=" .env; then
-            echo "APP_KEY=" >> .env
-        fi
+    if [ -z "$(grep "APP_KEY=base64:" .env)" ]; then
+        log "APP_KEY empty or invalid in .env. Generating..."
         php artisan key:generate --no-interaction --force
-        log "APP_KEY generated and saved to .env."
+        # Re-check to confirm
+        if grep -q "APP_KEY=base64:" .env; then
+            log "APP_KEY successfully generated."
+        else
+            log "ERROR: Failed to generate APP_KEY automatically. Please set it manually in Dockply."
+        fi
+    else
+        log "APP_KEY found in .env."
     fi
 else
     log "APP_KEY is set in the environment."
-    # Ensure .env exists even if using environment variables
     if [ ! -f .env ]; then
-        touch .env
+        echo "APP_KEY=$APP_KEY" > .env
     fi
+fi
+
+# Emergency Debug Mode: If we are getting 500, we need to see it.
+# We only enable this if APP_DEBUG is not explicitly set to false.
+if [ -z "$APP_DEBUG" ] || [ "$APP_DEBUG" = "null" ]; then
+    log "Enabling APP_DEBUG=true for investigation..."
+    if grep -q "APP_DEBUG=" .env; then
+        sed -i 's/APP_DEBUG=.*/APP_DEBUG=true/' .env
+    else
+        echo "APP_DEBUG=true" >> .env
+    fi
+    export APP_DEBUG=true
 fi
 
 # Ensure storage permissions
