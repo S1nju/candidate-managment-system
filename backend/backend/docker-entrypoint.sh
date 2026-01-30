@@ -40,6 +40,14 @@ log "Enabling log visibility and debug mode..."
 export APP_DEBUG=true
 export LOG_CHANNEL=stderr
 
+# Force Production Domains for Sanctum/Sessions
+if [ "$APP_ENV" = "production" ]; then
+    log "Configuring production domains for Sanctum..."
+    export SANCTUM_STATEFUL_DOMAINS="signmehere.cloud,api.signmehere.cloud"
+    export SESSION_DOMAIN=".signmehere.cloud"
+    export SESSION_SECURE_COOKIE=true
+fi
+
 # Wait for Database
 log "Waiting for database connection ($DB_HOST:$DB_PORT)..."
 MAX_TRIES=30
