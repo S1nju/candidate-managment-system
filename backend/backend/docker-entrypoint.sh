@@ -40,6 +40,20 @@ log "Enabling log visibility and debug mode..."
 export APP_DEBUG=true
 export LOG_CHANNEL=stderr
 
+# Wait for Database
+log "Waiting for database connection ($DB_HOST:$DB_PORT)..."
+MAX_TRIES=30
+COUNT=0
+while ! php artisan tinker --execute="try { DB::connection()->getPdo(); exit(0); } catch (\Exception \$e) { exit(1); }" > /dev/null 2>&1; do
+    COUNT=$((COUNT + 1))
+    if [ $COUNT -ge $MAX_TRIES ]; then
+        log "CRITICAL ERROR: Database connection timed out after $MAX_TRIES tries."
+        break
+    fi
+    log "Database not ready yet... waiting (try $COUNT/$MAX_TRIES)"
+    sleep 2
+done
+
 # Verify key is loaded
 log "Verifying loaded configuration..."
 php artisan config:clear > /dev/null
