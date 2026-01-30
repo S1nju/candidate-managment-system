@@ -2,7 +2,7 @@
 
 namespace App\Modules\Signing\Services;
 
-use App\Modules\Documents\Models\Document;
+// use App\Modules\Documents\Models\Document;
 use App\Modules\Signing\Models\DocumentSignature;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +20,7 @@ class SigningService
 {
     public function __construct(protected AuditService $auditService) {}
 
-    public function signDocument(Document $document, User $user, array $data): DocumentSignature
+    public function signDocument($document, User $user, array $data): DocumentSignature
     {
         // Log::info('signDocument received data', $data);
 
@@ -60,7 +60,7 @@ class SigningService
             // Embed all signatures into PDF
             $this->embedSignatures($document, $overlays);
 
-            // Create a NEW document record for the signed version
+            /*
             $signedDocument = Document::create([
                 'title' => $document->title . ' (Signed)',
                 'description' => $document->description,
@@ -70,6 +70,7 @@ class SigningService
                 'assigned_to' => $document->assigned_to,
                 'signed_at' => now(),
             ]);
+            */
 
             // Update original document status if it wasn't already signed
             $document->update([
@@ -77,13 +78,15 @@ class SigningService
                 'signed_at' => now(),
             ]);
 
+            /*
             $this->auditService->log('document_signed', $signedDocument, [
                 'signature_id' => $signature->id,
                 'original_document_id' => $document->id
             ]);
+            */
 
             if ($document->owner) {
-                $document->owner->notify(new DocumentSignedNotification($signedDocument));
+                // $document->owner->notify(new DocumentSignedNotification($signedDocument));
             }
 
             return $signature;
@@ -91,7 +94,7 @@ class SigningService
     }
 
     // Embed multiple overlays (signatures) into the PDF
-    protected function embedSignatures(Document $document, array $overlays): void
+    protected function embedSignatures($document, array $overlays): void
     {
         try {
             $originalPath = storage_path('app/secure/' . $document->file_path);
@@ -134,7 +137,7 @@ class SigningService
         }
     }
 
-    public function rejectDocument(Document $document, User $user, string $reason): void
+    public function rejectDocument($document, User $user, string $reason): void
     {
         if ($document->assigned_to !== $user->id) {
             throw new Exception("You are not assigned to reject this document.");

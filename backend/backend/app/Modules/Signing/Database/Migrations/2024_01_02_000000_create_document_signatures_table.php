@@ -11,7 +11,7 @@ return new class extends Migration
         if (!Schema::hasTable('document_signatures')) {
             Schema::create('document_signatures', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('document_id')->constrained('documents')->onDelete('cascade');
+                $table->unsignedBigInteger('document_id')->nullable();
                 $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
                 $table->string('signature_type')->default('text'); // text, image
                 $table->text('signature_value'); // The name typed or path to signature image

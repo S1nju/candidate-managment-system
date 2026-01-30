@@ -2,7 +2,6 @@
 
 namespace App\Modules\Notifications\Notifications;
 
-use App\Modules\Documents\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -12,7 +11,7 @@ class DocumentAssignedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public Document $document) {}
+    public function __construct(public int|string|null $documentId, public string $documentTitle = 'Document') {}
 
     public function via(object $notifiable): array
     {
@@ -22,10 +21,10 @@ class DocumentAssignedNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('New Document Assigned: '.$this->document->title)
+            ->subject('New Document Assigned: '.$this->documentTitle)
             ->line('You have been assigned a new document to sign.')
-            ->line('Document: '.$this->document->title)
-            ->action('View Document', url('/dashboard/documents/'.$this->document->id))
+            ->line('Document: '.$this->documentTitle)
+            ->action('View Document', url('/dashboard/documents/'.$this->documentId))
             ->line('Please sign it at your earliest convenience.');
     }
 
@@ -34,8 +33,8 @@ class DocumentAssignedNotification extends Notification implements ShouldQueue
         return [
             'type' => 'document',
             'title' => 'New Document Assigned',
-            'message' => "You have been assigned a new document: {$this->document->title}",
-            'document_id' => $this->document->id,
+            'message' => "You have been assigned a new document: {$this->documentTitle}",
+            'document_id' => $this->documentId,
         ];
     }
 }
