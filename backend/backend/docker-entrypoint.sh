@@ -12,14 +12,19 @@ log "Starting entrypoint script..."
 
 # Check if APP_KEY is set
 if [ -z "$APP_KEY" ]; then
-    log "WARNING: APP_KEY is not set. Attempting to generate one if .env exists..."
-    if [ ! -f .env ]; then
-        log "Creating .env from .env.example..."
-        cp .env.example .env
-    fi
-    php artisan key:generate --no-interaction
+    log "WARNING: APP_KEY is not set in the environment!"
+    log "This may cause a 500 error if Laravel cannot find a key in .env either."
 else
-    log "APP_KEY is set."
+    log "APP_KEY is set in the environment."
+fi
+
+# We will NOT copy .env.example to .env here, 
+# as Dockply should provide variables via environment.
+# If Laravel requires a .env file to exist, it's better to create an empty one
+# to avoid it reading a fallback .env that might have different keys.
+if [ ! -f .env ]; then
+    touch .env
+    log "Created empty .env file to ensure Laravel doesn't complain, favoring system env."
 fi
 
 # Ensure storage permissions
