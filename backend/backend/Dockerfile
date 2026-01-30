@@ -46,13 +46,15 @@ RUN chown -R www-data:www-data /var/www
 # Fix line endings and permissions for entrypoint
 RUN apt-get update && apt-get install -y dos2unix \
     && dos2unix docker-entrypoint.sh \
-    && chmod +x docker-entrypoint.sh
+    && chmod 755 docker-entrypoint.sh \
+    && chown www-data:www-data docker-entrypoint.sh
 
 # Expose HTTP port
 EXPOSE 8000
 
 # Entrypoint to handle setup
-ENTRYPOINT ["/var/www/docker-entrypoint.sh"]
+# Using sh explicitly to avoid permission issues with direct execution
+ENTRYPOINT ["/bin/sh", "/var/www/docker-entrypoint.sh"]
 
-# Start Laravel directly
+# Start Laravel directly (passed as args to entrypoint)
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
