@@ -25,8 +25,6 @@ services:
         build:
             context: ./frontend
             dockerfile: Dockerfile
-            args:
-                NEXT_PUBLIC_BACKEND_URL: "https://api.signmehere.cloud/"
         image: signme-frontend
         container_name: signme-frontend
         restart: unless-stopped
