@@ -46,5 +46,11 @@ RUN chown -R www-data:www-data /var/www
 # Expose HTTP port (what Dockploy will route to)
 EXPOSE 8000
 
-# Start Laravel directly
+# Copy and make entrypoint script executable
+RUN chmod +x /var/www/docker-entrypoint.sh
+
+# Entrypoint to handle setup
+ENTRYPOINT ["/var/www/docker-entrypoint.sh"]
+
+# Start Laravel directly (passed as $@ to entrypoint)
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
