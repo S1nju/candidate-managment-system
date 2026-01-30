@@ -17,21 +17,16 @@ if [ -z "$APP_KEY" ]; then
         echo "APP_KEY=" > .env
         log "Created new .env with APP_KEY placeholder."
     elif ! grep -q "APP_KEY=" .env; then
+        # Ensure there is a newline before appending
+        sed -i '$a\' .env
         echo "APP_KEY=" >> .env
         log "Added APP_KEY placeholder to existing .env."
     fi
     
+    # Check if it has a value
     if [ -z "$(grep "APP_KEY=base64:" .env)" ]; then
         log "APP_KEY empty or invalid in .env. Generating..."
         php artisan key:generate --no-interaction --force
-        # Re-check to confirm
-        if grep -q "APP_KEY=base64:" .env; then
-            log "APP_KEY successfully generated."
-        else
-            log "ERROR: Failed to generate APP_KEY automatically. Please set it manually in Dockply."
-        fi
-    else
-        log "APP_KEY found in .env."
     fi
 else
     log "APP_KEY is set in the environment."
@@ -40,22 +35,25 @@ else
     fi
 fi
 
-# Emergency Debug Mode: If we are getting 500, we need to see it.
-# We only enable this if APP_DEBUG is not explicitly set to false.
-if [ -z "$APP_DEBUG" ] || [ "$APP_DEBUG" = "null" ]; then
-    log "Enabling APP_DEBUG=true for investigation..."
-    if grep -q "APP_DEBUG=" .env; then
-        sed -i 's/APP_DEBUG=.*/APP_DEBUG=true/' .env
-    else
-        echo "APP_DEBUG=true" >> .env
-    fi
-    export APP_DEBUG=true
+# Emergency Debug Mode and Log Visibility
+log "Enabling log visibility and debug mode..."
+export APP_DEBUG=true
+export LOG_CHANNEL=stderr
+
+# Verify key is loaded
+log "Verifying loaded configuration..."
+php artisan config:clear > /dev/null
+KEY_CHECK=$(php artisan tinker --execute="echo config('app.key');")
+if [ -z "$KEY_CHECK" ]; then
+    log "CRITICAL ERROR: APP_KEY is still empty in Laravel config!"
+else
+    log "APP_KEY confirmed in config."
 fi
 
 # Ensure storage permissions
 log "Fixing storage permissions..."
 chown -R www-data:www-data /var/www/storage
-chmod -R 775 /var/www/storage
+chmod -R 777 /var/www/storage # Be aggressive for debugging
 
 # Migrate database
 if [ "$DB_FRESH" = "true" ]; then
@@ -63,13 +61,11 @@ if [ "$DB_FRESH" = "true" ]; then
     php artisan migrate:fresh --force
 else
     log "Migrating database..."
-    if ! php artisan migrate --force; then
-        log "WARNING: Migration failed. Check if tables already exist or if DB is connected."
-    fi
+    php artisan migrate --force || log "Migration warning/failure."
 fi
 
 # Cache configuration
-log "Clearing and caching configuration..."
+log "Preparing application cache..."
 php artisan config:clear
 php artisan route:clear
 php artisan view:clear
