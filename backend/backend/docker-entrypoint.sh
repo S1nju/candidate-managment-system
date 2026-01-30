@@ -21,7 +21,10 @@ if [ -z "$APP_KEY" ]; then
     if grep -q "APP_KEY=" .env && [ -n "$(grep "APP_KEY=base64:" .env)" ]; then
         log "APP_KEY found in .env file."
     else
-        log "APP_KEY not found in .env. Generating one..."
+        log "APP_KEY not found or invalid in .env. Preparing for generation..."
+        if ! grep -q "APP_KEY=" .env; then
+            echo "APP_KEY=" >> .env
+        fi
         php artisan key:generate --no-interaction --force
         log "APP_KEY generated and saved to .env."
     fi
@@ -45,19 +48,22 @@ if [ "$DB_FRESH" = "true" ]; then
 else
     log "Migrating database..."
     if ! php artisan migrate --force; then
-        log "ERROR: Migration failed. If tables already exist, try setting DB_FRESH=true in your environment variables."
-        log "CAUTION: DB_FRESH=true will wipe all data in the database!"
-        # We don't exit here to allow the app to attempt to start anyway if possible
-        # but in most cases, a migration failure is critical.
-        # exit 1 
+        log "WARNING: Migration failed. Check if tables already exist or if DB is connected."
     fi
 fi
 
 # Cache configuration
-log "Caching configuration and routes..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+log "Clearing and caching configuration..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+
+if [ "$APP_ENV" = "production" ]; then
+    log "Production environment detected. Caching..."
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+fi
 
 # Link storage
 log "Linking storage..."
