@@ -39,8 +39,19 @@ chown -R www-data:www-data /var/www/storage
 chmod -R 775 /var/www/storage
 
 # Migrate database
-log "Migrating database..."
-php artisan migrate --force
+if [ "$DB_FRESH" = "true" ]; then
+    log "DB_FRESH is true. Running migrate:fresh..."
+    php artisan migrate:fresh --force
+else
+    log "Migrating database..."
+    if ! php artisan migrate --force; then
+        log "ERROR: Migration failed. If tables already exist, try setting DB_FRESH=true in your environment variables."
+        log "CAUTION: DB_FRESH=true will wipe all data in the database!"
+        # We don't exit here to allow the app to attempt to start anyway if possible
+        # but in most cases, a migration failure is critical.
+        # exit 1 
+    fi
+fi
 
 # Cache configuration
 log "Caching configuration and routes..."

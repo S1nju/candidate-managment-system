@@ -7,16 +7,18 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('candidates', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email');
-            $table->string('phone')->nullable();
-            $table->string('position')->nullable();
-            $table->string('cv_url')->nullable();
-            $table->json('data')->nullable();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('candidates')) {
+            Schema::create('candidates', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('email');
+                $table->string('phone')->nullable();
+                $table->string('position')->nullable();
+                $table->string('cv_url')->nullable();
+                $table->json('data')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
