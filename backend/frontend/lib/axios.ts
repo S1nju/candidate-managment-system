@@ -1,7 +1,19 @@
 import axios from "axios"
 
+let baseURL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000"
+
+// Ensure baseURL has a protocol to prevent browser relative URL interpretation
+if (baseURL && !baseURL.startsWith('http')) {
+  baseURL = `https://${baseURL}`
+}
+
+// Remove trailing slash to prevent double slashes when combined with paths like /api
+if (baseURL.endsWith('/')) {
+  baseURL = baseURL.slice(0, -1)
+}
+
 const axiosClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000",
+  baseURL,
   headers: {
     "X-Requested-With": "XMLHttpRequest",
   },

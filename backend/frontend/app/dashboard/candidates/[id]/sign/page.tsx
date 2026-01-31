@@ -196,7 +196,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
       })
 
     const handleBeforeUnload = () => {
-      const url = `${axios.defaults.baseURL}/api/candidates/${id}/release-lock`.replace('//api', '/api');
+      const url = `${axios.defaults.baseURL}/api/candidates/${id}/release-lock`;
       const data = new FormData();
       data.append('session_id', lockingSessionId);
       navigator.sendBeacon(url, data);
@@ -249,7 +249,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           }
         }
 
-        const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract`.replace('//api', '/api')
+        const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract`
         setContractFile(downloadUrl)
       } catch (err) {
         console.error("Failed to get contract", err)
