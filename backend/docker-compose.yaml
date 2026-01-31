@@ -52,7 +52,7 @@ services:
             MYSQL_PASSWORD: ${DB_PASSWORD}
             MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
         volumes:
-            - dbdata:/var/lib/mysql
+            - mysql_data:/var/lib/mysql
         networks:
             - signme-network
 
@@ -79,5 +79,5 @@ networks:
         driver: bridge
 
 volumes:
-    dbdata:
+    mysql_data:
     storage_data:
