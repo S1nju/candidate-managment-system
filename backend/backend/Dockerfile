@@ -38,7 +38,8 @@ WORKDIR /var/www
 COPY . .
 
 # Install dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader \
+    && ls -la vendor/autoload.php || (echo "Composer failed to create autoloader" && exit 1)
 
 # Permissions
 RUN chown -R www-data:www-data /var/www

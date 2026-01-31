@@ -10,16 +10,23 @@ log() {
 
 log "Starting entrypoint script (Direct Env Mode)..."
 
-# 0. CHECK FOR DEPENDENCIES
+# 0. EMERGENCY DEPENDENCY CHECK
 if [ ! -f /var/www/vendor/autoload.php ]; then
-    log "CRITICAL: /var/www/vendor/autoload.php not found!"
+    log "ERROR: /var/www/vendor/autoload.php is MISSING!"
+    log "Current directory: $(pwd)"
+    log "Listing current directory content:"
+    ls -la
+    
     if [ -f composer.json ]; then
-        log "Attempting to install dependencies (fallback)..."
-        composer install --no-dev --optimize-autoloader || log "Composer install failed."
+        log "Attempting to run composer install now..."
+        composer install --no-interaction --no-dev --optimize-autoloader || log "Composer install failed!"
     else
-        log "Error: composer.json not found. Cannot install dependencies."
+        log "CRITICAL: composer.json not found in $(pwd). Container cannot start."
         exit 1
     fi
+fi
+if [ -f /var/www/vendor/autoload.php ]; then
+    log "Success: vendor/autoload.php found."
 fi
 
 # 1. DELETE ANY .ENV FILE
