@@ -9,6 +9,8 @@ log() {
 }
 
 log "Starting entrypoint script (Direct Env Mode)..."
+log "USER: $(id)"
+log "PWD: $(pwd)"
 
 # 0. EMERGENCY DEPENDENCY CHECK
 if [ ! -f /var/www/vendor/autoload.php ]; then

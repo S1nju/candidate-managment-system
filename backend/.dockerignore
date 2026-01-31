@@ -1,0 +1,12 @@
+.git
+.env
+backend/vendor
+backend/storage/*.key
+backend/bootstrap/cache/*
+frontend/node_modules
+frontend/.next
+docker-compose.yaml
+Dockerfile
+.dockerignore
+**/node_modules
+**/vendor
