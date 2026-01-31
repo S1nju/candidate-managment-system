@@ -5,4 +5,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::get('/audit-logs', [AuditController::class, 'index']);
+    Route::get('/audit-logs/filters', [AuditController::class, 'filters']);
 });
