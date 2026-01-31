@@ -10,52 +10,57 @@ log() {
 
 log "Starting entrypoint script..."
 
-# Handle APP_KEY
-if [ -z "$APP_KEY" ]; then
-    log "APP_KEY not found in environment. Checking .env..."
-    if [ ! -f .env ]; then
-        echo "APP_KEY=" > .env
-        log "Created new .env with APP_KEY placeholder."
-    elif ! grep -q "APP_KEY=" .env; then
-        # Ensure there is a newline before appending
-        sed -i '$a\' .env
+# Sync Environment Variables to .env
+# This ensures that both CLI and Web processes see the same configuration
+log "Syncing environment variables to .env..."
+touch .env
+# List of critical variables to sync
+VARS="APP_NAME APP_ENV APP_KEY APP_DEBUG APP_URL DB_CONNECTION DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD SANCTUM_STATEFUL_DOMAINS SESSION_DOMAIN SESSION_DRIVER SESSION_SECURE_COOKIE LOG_CHANNEL"
+
+for var in $VARS; do
+    val=$(eval echo \$$var)
+    if [ ! -z "$val" ]; then
+        if grep -q "^$var=" .env; then
+            # Use | as delimiter for sed to handle cases where $val contains /
+            sed -i "s|^$var=.*|$var=$val|" .env
+        else
+            echo "$var=$val" >> .env
+        fi
+    fi
+done
+
+# Handle APP_KEY generation if still missing after sync
+if ! grep -q "APP_KEY=base64:" .env; then
+    log "APP_KEY empty or missing in .env. Generating..."
+    # Ensure placeholder exists for key:generate
+    if ! grep -q "^APP_KEY=" .env; then
         echo "APP_KEY=" >> .env
-        log "Added APP_KEY placeholder to existing .env."
     fi
-    
-    # Check if it has a value
-    if [ -z "$(grep "APP_KEY=base64:" .env)" ]; then
-        log "APP_KEY empty or invalid in .env. Generating..."
-        php artisan key:generate --no-interaction --force
-    fi
-else
-    log "APP_KEY is set in the environment."
-    if [ ! -f .env ]; then
-        echo "APP_KEY=$APP_KEY" > .env
-    fi
+    php artisan key:generate --no-interaction --force
 fi
 
-# Emergency Debug Mode and Log Visibility
-log "Enabling log visibility and debug mode..."
-export APP_DEBUG=true
-export LOG_CHANNEL=stderr
-
-# Force Production Domains for Sanctum/Sessions
+# Force Production Domains for Sanctum/Sessions if in production
 if [ "$APP_ENV" = "production" ]; then
     log "Configuring production domains for Sanctum..."
-    export SANCTUM_STATEFUL_DOMAINS="signmehere.cloud,api.signmehere.cloud"
-    export SESSION_DOMAIN=".signmehere.cloud"
-    export SESSION_SECURE_COOKIE=true
+    DOMAIN="signmehere.cloud"
+    # Only append if not already set to the correct production value
+    if ! grep -q "SANCTUM_STATEFUL_DOMAINS=.*$DOMAIN" .env; then
+        echo "SANCTUM_STATEFUL_DOMAINS=$DOMAIN,api.$DOMAIN" >> .env
+        echo "SESSION_DOMAIN=.$DOMAIN" >> .env
+        echo "SESSION_SECURE_COOKIE=true" >> .env
+    fi
 fi
 
 # Wait for Database
+# Ensure we are checking mysql, not sqlite
 log "Waiting for database connection ($DB_HOST:$DB_PORT)..."
 MAX_TRIES=30
 COUNT=0
-while ! php artisan tinker --execute="try { DB::connection()->getPdo(); exit(0); } catch (\Exception \$e) { exit(1); }" > /dev/null 2>&1; do
+# Use a simple PHP check instead of tinker to be faster and more direct
+while ! php -r "try { \$pdo = new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT') . ';dbname=' . getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD')); exit(0); } catch (Exception \$e) { exit(1); }" > /dev/null 2>&1; do
     COUNT=$((COUNT + 1))
     if [ $COUNT -ge $MAX_TRIES ]; then
-        log "CRITICAL ERROR: Database connection timed out after $MAX_TRIES tries."
+        log "CRITICAL WARNING: Database connection check timed out. Proceeding anyway..."
         break
     fi
     log "Database not ready yet... waiting (try $COUNT/$MAX_TRIES)"
@@ -64,6 +69,7 @@ done
 
 # Verify key is loaded
 log "Verifying loaded configuration..."
+# Clear cache before checking to ensure we see the latest .env
 php artisan config:clear > /dev/null
 KEY_CHECK=$(php artisan tinker --execute="echo config('app.key');")
 if [ -z "$KEY_CHECK" ]; then
