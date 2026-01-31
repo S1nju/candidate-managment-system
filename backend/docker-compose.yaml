@@ -69,8 +69,6 @@ services:
         container_name: signme-reverb
         restart: unless-stopped
         command: "php artisan reverb:start --host=0.0.0.0 --port=8080"
-        volumes:
-            - ./backend:/var/www
         networks:
             - signme-network
         depends_on:

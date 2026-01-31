@@ -10,6 +10,18 @@ log() {
 
 log "Starting entrypoint script (Direct Env Mode)..."
 
+# 0. CHECK FOR DEPENDENCIES
+if [ ! -f /var/www/vendor/autoload.php ]; then
+    log "CRITICAL: /var/www/vendor/autoload.php not found!"
+    if [ -f composer.json ]; then
+        log "Attempting to install dependencies (fallback)..."
+        composer install --no-dev --optimize-autoloader || log "Composer install failed."
+    else
+        log "Error: composer.json not found. Cannot install dependencies."
+        exit 1
+    fi
+fi
+
 # 1. DELETE ANY .ENV FILE
 # Per user request, we do not use .env files. 
 # We delete it to ensure Laravel ONLY looks at the container environment.
