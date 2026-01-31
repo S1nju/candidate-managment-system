@@ -62,23 +62,6 @@ services:
         restart: unless-stopped
         networks:
             - signme-network
-
-    queue:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile
-        container_name: signme-queue
-        restart: unless-stopped
-        command: "php artisan queue:work"
-        volumes:
-            - ./backend:/var/www
-        networks:
-            - signme-network
-        depends_on:
-            - app
-            - db
-            - redis
-
     reverb:
         build:
             context: ./backend

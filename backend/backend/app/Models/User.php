@@ -52,4 +52,12 @@ class User extends Authenticatable
             'force_password_reset' => 'boolean',
         ];
     }
+
+    /**
+     * Get the audit logs for the user.
+     */
+    public function auditLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Modules\Audit\Models\AuditLog::class);
+    }
 }

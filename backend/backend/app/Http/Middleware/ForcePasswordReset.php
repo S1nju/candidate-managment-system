@@ -16,7 +16,19 @@ class ForcePasswordReset
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && Auth::user()->force_password_reset) {
+        // Safely check authentication. If sessions aren't enabled for this request 
+        // (common in API), Auth::check() might fail if the default guard is 'web'.
+        // We check if session is available OR if using sanctum guard.
+        $isAuthenticated = false;
+        try {
+            $isAuthenticated = Auth::check();
+        } catch (\RuntimeException $e) {
+            // Probably "Session store not set on request"
+            // Fallback to sanctum guard which is safer for API
+            $isAuthenticated = Auth::guard('sanctum')->check();
+        }
+
+        if ($isAuthenticated && Auth::user()->force_password_reset) {
             // Allow the specific route to change password and logout
             if (!$request->is('api/user/change-password') && !$request->is('api/auth/logout')) {
                 return response()->json([

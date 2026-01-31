@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [ 'https://signmehere.cloud'],
+    'allowed_origins' => [ 'http://localhost:3000','https://signmehere.cloud'],
 
     'allowed_origins_patterns' => [],
 

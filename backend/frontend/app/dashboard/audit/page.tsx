@@ -34,19 +34,30 @@ export default function AuditPage() {
 
     const [search, setSearch] = useState("")
     const [action, setAction] = useState("all")
+    const [userId, setUserId] = useState("all")
+    const [startDate, setStartDate] = useState("")
+    const [endDate, setEndDate] = useState("")
     const [page, setPage] = useState(1)
     const pageSize = 15
 
     const isAdmin = user?.roles?.some((r: any) => r.name === 'admin')
 
+    // Fetch filter options (users and unique actions)
+    const { data: filterOptions } = useSWR(isAdmin ? '/api/audit-logs/filters' : null, () =>
+        axios.get('/api/audit-logs/filters').then(res => res.data)
+    )
+
     const { data: response, error, isLoading } = useSWR(
-        isAdmin ? `/api/audit-logs?page=${page}&per_page=${pageSize}${search ? `&search=${search}` : ""}${action !== "all" ? `&action=${action}` : ""}` : null,
+        isAdmin ? `/api/audit-logs?page=${page}&per_page=${pageSize}&search=${search}&action=${action}&user_id=${userId}&start_date=${startDate}&end_date=${endDate}` : null,
         () => axios.get(`/api/audit-logs`, {
             params: {
                 page,
                 per_page: pageSize,
                 search: search || undefined,
-                action: action !== "all" ? action : undefined
+                action: action !== "all" ? action : undefined,
+                user_id: userId !== "all" ? userId : undefined,
+                start_date: startDate || undefined,
+                end_date: endDate || undefined
             }
         }).then((res) => res.data)
     )
@@ -56,9 +67,11 @@ export default function AuditPage() {
     const totalPages = response?.last_page || 0
 
     const getActionColor = (action: string) => {
-        if (action.includes("signed")) return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400"
-        if (action.includes("rejected")) return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400"
-        if (action.includes("created")) return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+        const a = action.toLowerCase()
+        if (a.includes("signed")) return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400"
+        if (a.includes("rejected")) return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+        if (a.includes("created") || a.includes("uploaded")) return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+        if (a.includes("assigned")) return "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400"
         return "bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400"
     }
 
@@ -82,38 +95,95 @@ export default function AuditPage() {
                 </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center justify-between pb-2">
-                <div className="relative w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder={t("candidates.list.search_placeholder")}
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value)
-                            setPage(1)
-                        }}
-                        className="pl-9 h-10 bg-card"
-                    />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end bg-card p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                {/* Text Search */}
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Search</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder={t("common.search")}
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value)
+                                setPage(1)
+                            }}
+                            className="pl-9 h-9 bg-background border-slate-200"
+                        />
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={action} onValueChange={(val) => {
-                        setAction(val)
-                        setPage(1)
-                    }}>
-                        <SelectTrigger className="w-[180px] h-10 bg-card">
-                            <SelectValue placeholder="Action" />
+
+                {/* User Filter */}
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">User</label>
+                    <Select value={userId} onValueChange={(val) => { setUserId(val); setPage(1); }}>
+                        <SelectTrigger className="h-9 bg-background border-slate-200">
+                            <SelectValue placeholder={!filterOptions ? "Loading..." : "All Users"} />
                         </SelectTrigger>
                         <SelectContent className="bg-card">
-                            <SelectItem value="all">{t("common.all")}</SelectItem>
-                            <SelectItem value="contract_signed">Contract Signed</SelectItem>
-                            <SelectItem value="contract_rejected">Contract Rejected</SelectItem>
-                            <SelectItem value="document_uploaded">Document Uploaded</SelectItem>
-                            <SelectItem value="document_signed">Document Signed</SelectItem>
-                            <SelectItem value="document_assigned">Document Assigned</SelectItem>
-                            <SelectItem value="document_rejected">Document Rejected</SelectItem>
+                            <SelectItem value="all">All Users</SelectItem>
+                            {filterOptions?.users?.map((u: any) => (
+                                <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* Action Filter */}
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Action</label>
+                    <Select value={action} onValueChange={(val) => { setAction(val); setPage(1); }}>
+                        <SelectTrigger className="h-9 bg-background border-slate-200">
+                            <SelectValue placeholder={!filterOptions ? "Loading..." : "Action"} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card">
+                            <SelectItem value="all">All Actions</SelectItem>
+                            {filterOptions?.actions?.map((a: string) => (
+                                <SelectItem key={a} value={a}>{a.replace(/_/g, " ")}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Date Start */}
+                <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">From Date</label>
+                    <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                        className="h-9 bg-background border-slate-200"
+                    />
+                </div>
+
+                {/* Date End */}
+                <div className="space-y-2 relative">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">To Date</label>
+                    <div className="flex gap-2">
+                        <Input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                            className="h-9 bg-background border-slate-200"
+                        />
+                        {(search || action !== 'all' || userId !== 'all' || startDate || endDate) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                    setSearch("")
+                                    setAction("all")
+                                    setUserId("all")
+                                    setStartDate("")
+                                    setEndDate("")
+                                    setPage(1)
+                                }}
+                            >
+                                Clear
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -166,7 +236,7 @@ export default function AuditPage() {
                                                     }
                                                     className="font-medium text-primary hover:underline flex items-center gap-1"
                                                 >
-                                                    {log.auditable.name || log.auditable.title || `${log.auditable_type.split('\\').pop()} #${log.auditable_id}`}
+                                                    {log.auditable.first_name ? `${log.auditable.first_name} ${log.auditable.last_name}` : (log.auditable.name || log.auditable.title || `${log.auditable_type.split('\\').pop()} #${log.auditable_id}`)}
                                                     <ExternalLink className="w-3 h-3 opacity-50" />
                                                 </Link>
                                             ) : (
@@ -199,7 +269,7 @@ export default function AuditPage() {
                 <div className="flex justify-end gap-2 mt-2">
                     <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>{t("common.previous")}</Button>
                     <div className="flex items-center text-sm font-medium">
-                        {t("candidates.list.pagination").replace("{page}", page.toString()).replace("{total}", totalPages.toString())}
+                        {t("common.pagination").replace("{page}", page.toString()).replace("{total}", totalPages.toString())}
                     </div>
                     <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>{t("common.next")}</Button>
                 </div>

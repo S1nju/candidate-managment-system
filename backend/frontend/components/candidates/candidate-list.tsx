@@ -87,7 +87,7 @@ export function CandidateList() {
   })
 
   const { data: response, error, isLoading, mutate } = useSWR(`/api/candidates?${queryParams.toString()}`)
-  const { data: workers } = useSWR(isAdmin ? "/api/users" : null)
+  const { data: workers } = useSWR(isAdmin ? "/api/admin/users" : null)
 
   const candidates = (response?.data as Candidate[] || [])
   const pagination = {
@@ -261,9 +261,9 @@ export function CandidateList() {
                             {c.assigned_to_user?.name || t("dashboard.stats.unsigned")}
                           </SelectValue>
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-card">
                           <SelectItem value="unassigned">{t("dashboard.stats.unsigned")}</SelectItem>
-                          {workers?.data?.map((w: any) => (
+                          {(Array.isArray(workers) ? workers : [])?.map((w: any) => (
                             <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
                           ))}
                         </SelectContent>

@@ -13,7 +13,7 @@ class AuditController extends Controller
     {
         $perPage = $request->input('per_page', 20);
  
-        $query = AuditLog::with(['user'])
+        $query = AuditLog::with(['user', 'auditable'])
             ->latest();
  
         // Filter by user
