@@ -1,19 +1,21 @@
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
 # Install dependencies only when needed
 FROM base AS deps
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
+COPY package.json pnpm-lock.yaml* ./
 COPY .api ./.api
-RUN npm install
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -25,7 +27,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ARG NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 
-RUN npm run build
+RUN pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
