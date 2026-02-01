@@ -7,13 +7,15 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-# Install dependencies based on the preferred package manager
-COPY package.json package-lock.json* ./
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY package.json pnpm-lock.yaml* ./
 COPY .api ./.api
-RUN npm ci --no-audit --prefer-offline
+RUN pnpm install --frozen-lockfile
+
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -25,7 +27,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 ARG NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 
-RUN npm run build
+RUN pnpm run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
