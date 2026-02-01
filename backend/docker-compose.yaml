@@ -27,8 +27,6 @@ services:
             SESSION_DOMAIN: .signmehere.cloud
             SANCTUM_STATEFUL_DOMAINS: signmehere.cloud,api.signmehere.cloud
             LOG_CHANNEL: stderr
-        networks:
-            - signme-network
 
     frontend:
         build:
@@ -39,8 +37,6 @@ services:
         image: signme-frontend
         container_name: signme-frontend
         restart: unless-stopped
-        networks:
-            - signme-network
 
     db:
         image: mysql:8.0
@@ -53,30 +49,20 @@ services:
             MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
         volumes:
             - mysql_data:/var/lib/mysql
-        networks:
-            - signme-network
 
     redis:
         image: redis:alpine
         container_name: signme-redis
         restart: unless-stopped
-        networks:
-            - signme-network
     reverb:
         image: signme-backend
         container_name: signme-reverb
         restart: unless-stopped
         command: "php artisan reverb:start --host=0.0.0.0 --port=8080"
-        networks:
-            - signme-network
         depends_on:
             - app
             - db
             - redis
-
-networks:
-    signme-network:
-        driver: bridge
 
 volumes:
     mysql_data:
