@@ -7,15 +7,17 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm@latest
+ENV NODE_OPTIONS="--max-old-space-size=1200"
 COPY package.json pnpm-lock.yaml* ./
 COPY .api ./.api
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm@latest
+ENV NODE_OPTIONS="--max-old-space-size=1200"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
