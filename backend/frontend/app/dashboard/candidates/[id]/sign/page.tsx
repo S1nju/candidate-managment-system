@@ -66,6 +66,8 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   const [signatures, setSignatures] = useState<Array<{
     type: "drawn" | "typed" | "stamp" | "text" | "date",
     value: string,
+    placeholder_name?: string,
+    field_name?: string,
     placement: { x: number, y: number, page: number },
     style?: React.CSSProperties
   }>>([])
@@ -82,6 +84,10 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   const [signingStatus, setSigningStatus] = useState<any>(null)
   const [activeUsers, setActiveUsers] = useState<any[]>([])
   const lockingSessionId = useRef<string>(Math.random().toString(36).substring(2, 11) + Date.now().toString(36)).current
+
+  // --- MULTI-CONTRACT STATE ---
+  const [contracts, setContracts] = useState<any[]>([])
+  const [activeContractId, setActiveContractId] = useState<number | null>(null)
 
   // Fetch Candidate - ONLY LOAD IF READY
   const { data: candidate, error, isLoading, mutate } = useSWR(isReadyToLoad ? `/api/candidates/${id}` : null, () => axios.get(`/api/candidates/${id}`).then(res => res.data))
@@ -224,33 +230,19 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
       setLoadingContract(true)
       try {
         const res = await axios.post(`/api/candidates/${id}/generate-contract`)
-        const { is_signed: isSigned, file: filePath, preview_data, placeholders } = res.data
+        // Support both old and new format for transition
+        const contractsList = res.data.contracts || [
+          { id: 99999, name: 'Contract', template_path: res.data.file, preview_data: res.data.preview_data, placeholders: res.data.placeholders, status: res.data.is_signed ? 'signed' : 'pending' }
+        ];
 
-        setPreviewData(preview_data || {})
-        setPlaceholders(placeholders || [])
+        setContracts(contractsList);
 
-        // --- AUTOMATED SIGNATURE PLACEMENT ---
-        // Pre-fill signatures state with any placeholders that are designated for signatures
-        if (placeholders) {
-          const sigPlaceholders = placeholders.filter((p: any) =>
-            p.position && (p.field_name === 'signature' || p.placeholder === 'signature' || (p.source === 'system' && p.field_name === 'signature'))
-          )
-
-          if (sigPlaceholders.length > 0) {
-            setSignatures(sigPlaceholders.map((p: any) => ({
-              type: "drawn", // default type
-              value: "", // empty initially
-              placement: {
-                x: p.position.x,
-                y: p.position.y,
-                page: p.position.page
-              }
-            })))
-          }
+        // If no active contract selected yet, select the first pending or first one
+        if (activeContractId === null && contractsList.length > 0) {
+          const firstPending = contractsList.find((c: any) => c.status === 'pending') || contractsList[0];
+          setActiveContractId(firstPending.id);
         }
 
-        const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract`
-        setContractFile(downloadUrl)
       } catch (err) {
         console.error("Failed to get contract", err)
         toast({ title: "Error", description: "Could not load contract", variant: "destructive" })
@@ -260,6 +252,56 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     }
     fetchContract()
   }, [id, isReadyToLoad, toast])
+
+  // Effect to update preview when active contract changes
+  useEffect(() => {
+    if (!activeContractId || contracts.length === 0) return;
+
+    const current = contracts.find(c => c.id === activeContractId);
+    if (!current) return;
+
+    setPreviewData(current.preview_data || {})
+    setPlaceholders(current.placeholders || [])
+
+    // Determine PDF URL
+    const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract?contract_id=${activeContractId}`
+    setContractFile(downloadUrl)
+
+    // Reset signatures when switching contracts
+    // Auto-place signatures based on placeholders
+    const sigPlaceholders = (current.placeholders || []).filter((p: any) => {
+      if (!p.position) return false;
+      if (p.source === 'static_signature') return false;
+
+      // Check explicit fields
+      if (p.field_name && (p.field_name.toLowerCase() === 'signature' || p.field_name.toLowerCase() === 'initials')) return true;
+
+      // Check placeholder name
+      if (p.placeholder && (p.placeholder.toLowerCase().includes('signature') || p.placeholder.toLowerCase().includes('initials'))) return true;
+
+      // Fallback: System images are likely signatures if not static
+      if (p.source === 'system' && p.field_type === 'image') return true;
+
+      return false;
+    })
+
+    if (sigPlaceholders.length > 0) {
+      setSignatures(sigPlaceholders.map((p: any) => ({
+        type: "drawn",
+        value: "",
+        placeholder_name: p.placeholder, // Track which placeholder this is for
+        field_name: p.field_name, // Track type (signature vs initials)
+        placement: {
+          x: p.position.x,
+          y: p.position.y,
+          page: p.position.page
+        }
+      })))
+    } else {
+      setSignatures([])
+    }
+
+  }, [activeContractId, contracts, id])
 
   const pdfUrl = contractFile;
 
@@ -278,6 +320,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           placement: sig.placement,
         })),
         session_id: lockingSessionId,
+        form_contract_id: activeContractId,
         ip_address: "localhost",
         user_agent: navigator.userAgent
       }
@@ -411,7 +454,10 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   if (isLoading || !candidate) return <div className="p-10 text-center">{t("common.loading")}</div>
   if (error) return <div className="p-10 text-center text-red-500">{t("candidates.sign.loading_pdf")}</div>
 
-  const isSigned = !!(candidate?.signature_id || candidate?.contract_status?.toLowerCase() === 'signed');
+  const isGlobalSigned = !!(candidate?.contract_status?.toLowerCase() === 'signed');
+  const activeContract = contracts.find(c => c.id === activeContractId);
+  // If we have multi-contract support, rely on the specific contract status
+  const isContractSigned = activeContract ? activeContract.status === 'signed' : isGlobalSigned;
 
   return (
     <div className="h-full flex flex-col bg-muted/10">
@@ -424,7 +470,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           <div>
             <h1 className="text-lg font-bold flex items-center gap-2">
               {t("candidates.sign.title")}
-              {isSigned && (
+              {isGlobalSigned && (
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                   {t("candidates.detail.contract_signed")}
                 </Badge>
@@ -455,7 +501,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
             <X className="mr-2 h-4 w-4" />
             {t("candidates.sign.reject")}
           </Button>
-          {!isSigned && (
+          {!isContractSigned && (
             <Button onClick={handleSave} disabled={signatures.length === 0 || isSaving} className="font-bold">
               <Save className="mr-2 h-4 w-4" />
               {isSaving ? t("candidates.sign.finalizing") : t("candidates.sign.finalize")}
@@ -495,20 +541,36 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
           {!loadingContract && pdfUrl && (
             <PDFViewer fileUrl={pdfUrl} onPageChange={setCurrentPage}>
-              {signatures.map((sig, idx) => (
+              {!isContractSigned && signatures.map((sig, idx) => (
                 sig.placement?.page === currentPage && (
                   <div
                     key={`s-${idx}`}
-                    className={`absolute border-4 border-emerald-500 border-dashed p-2 group z-50 ${draggingSignatureIdx === idx ? "cursor-grabbing ring-4 ring-emerald-500/80 bg-emerald-100/60" : isSigned ? "cursor-default" : "cursor-move"}`}
-                    style={{ left: `${sig.placement?.x}%`, top: `${sig.placement?.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none', pointerEvents: isSigned ? 'none' : 'auto' }}
-                    onMouseDown={e => { if (!isSigned) { e.preventDefault(); setDraggingSignatureIdx(idx); } }}
+                    className={`absolute border-4 border-emerald-500 border-dashed p-2 group z-50 ${draggingSignatureIdx === idx ? "cursor-grabbing ring-4 ring-emerald-500/80 bg-emerald-100/60" : "cursor-pointer hover:bg-emerald-50"}`}
+                    style={{ left: `${sig.placement?.x}%`, top: `${sig.placement?.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none' }}
+                    onMouseDown={e => {
+                      e.preventDefault();
+                      // If it's empty, open signature pad for THIS specific index
+                      if (!sig.value) {
+                        setDraggingSignatureIdx(idx); // Track which one we are signing
+                        setShowSignaturePad(true);
+                      } else {
+                        // If already signed, maybe allow moving? or re-signing?
+                        // For now allow move
+                        setDraggingSignatureIdx(idx);
+                      }
+                    }}
                   >
                     {sig.type === 'text' || sig.type === 'date' ? (
                       <div className="text-emerald-900 font-bold whitespace-nowrap text-lg" style={sig.style}>{sig.value}</div>
                     ) : sig.value ? (
                       <img src={sig.value} alt="Signature" className="pointer-events-none select-none" style={{ height: '64px', filter: 'none', fontWeight: 700 }} />
                     ) : (
-                      <div className="text-emerald-500 font-bold whitespace-nowrap text-xs">Signature</div>
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="text-emerald-600 font-bold whitespace-nowrap text-xs uppercase tracking-wider mb-1">
+                          {sig.field_name === 'initials' ? 'Initials' : 'Signature'}
+                        </div>
+                        <div className="text-[10px] text-emerald-500/70">Click to Sign</div>
+                      </div>
                     )}
                   </div>
                 )
@@ -517,8 +579,52 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           )}
         </div>
 
-        {!isSigned && (
+        {/* DEBUG BLOCK - REMOVE LATER */}
+        <div className="bg-slate-900 text-white p-4 text-xs font-mono absolute bottom-0 right-0 z-[100] max-h-48 overflow-auto opacity-75 hover:opacity-100">
+          <h3 className="font-bold border-b pb-1 mb-1">Debug Info</h3>
+          <div>Signatures Count: {signatures.length}</div>
+          <div>Active Contract: {activeContractId} ({contracts.find(c => c.id === activeContractId)?.name})</div>
+          <div>Total Contracts: {contracts.length}</div>
+          <pre className="mt-2">{JSON.stringify(signatures, null, 2)}</pre>
+          <pre className="mt-2 text-blue-300">
+            {JSON.stringify(contracts.find(c => c.id === activeContractId)?.placeholders, null, 2)}
+          </pre>
+        </div>
+
+        {!isContractSigned && (
           <div className="hidden lg:block col-span-1 border-l bg-background p-4 shadow-xl z-20">
+            {contracts.length > 1 && (
+              <div className="mb-6 border-b pb-6">
+                <div className="text-xs font-semibold text-muted-foreground mb-3">Contracts</div>
+                <div className="flex flex-col gap-2">
+                  {contracts.map(c => (
+                    <div
+                      key={c.id}
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${activeContractId === c.id ? 'bg-primary/10 border-primary ring-1 ring-primary' : 'bg-card hover:bg-accent border-transparent'}`}
+                      onClick={() => {
+                        if (isSaving || loadingContract) return;
+                        setActiveContractId(c.id);
+                      }}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium truncate" title={c.name}>{c.name}</span>
+                        {c.status === 'signed' ? (
+                          <CheckSquare className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <div className="h-2 w-2 rounded-full bg-yellow-500 opacity-50"></div>
+                        )}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className={`text-[10px] uppercase font-bold ${c.status === 'signed' ? 'text-emerald-600' : 'text-yellow-600'}`}>
+                          {c.status === 'pending' ? t("candidates.sign.status_pending") || 'Pending' : t("candidates.sign.status_signed") || 'Signed'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="font-bold text-xs text-muted-foreground mb-4 tracking-wider">{t("candidates.sign.fields")}</div>
 
             {savedSignatures.length > 0 && (
@@ -568,14 +674,23 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
             </div>
             <SignaturePad onSignatureCreate={(type, value) => {
               setSignatures(prev => {
-                const hasPlaceholders = prev.some(s => s.value === "");
-                if (hasPlaceholders) {
-                  return prev.map(s => s.value === "" ? { ...s, type, value } : s);
+                // If we are "dragging/editing" a specific signature (clicked on empty box), update THAT one
+                if (draggingSignatureIdx !== null && prev[draggingSignatureIdx]) {
+                  return prev.map((s, i) => i === draggingSignatureIdx ? { ...s, type, value } : s);
                 }
-                const filtered = prev.filter(s => s.value !== "")
-                return [...filtered, { type, value, placement: { x: 50, y: 50, page: currentPage } }]
+
+                // Fallback: If generic, find first empty one? Or just add new?
+                // Logic: If there are empty placeholders, fill the first compatible one
+                const firstEmptyIdx = prev.findIndex(s => s.value === "");
+                if (firstEmptyIdx !== -1) {
+                  return prev.map((s, i) => i === firstEmptyIdx ? { ...s, type, value } : s);
+                }
+
+                // Else add new (freehand placement)
+                return [...prev, { type, value, placement: { x: 50, y: 50, page: currentPage } }]
               })
               setShowSignaturePad(false)
+              setDraggingSignatureIdx(null) // Clear selection
             }} />
           </div>
         </div>

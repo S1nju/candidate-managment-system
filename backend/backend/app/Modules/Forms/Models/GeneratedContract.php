@@ -11,6 +11,10 @@ class GeneratedContract extends Model
         'candidate_id',
         'form_contract_id',
         'file_path',
+        'status',
+        'signed_at',
+        'signed_path',
+        'signature_metadata',
         'data_snapshot',
         'generated_at',
     ];
@@ -18,6 +22,8 @@ class GeneratedContract extends Model
     protected $casts = [
         'data_snapshot' => 'array',
         'generated_at' => 'datetime',
+        'signed_at' => 'datetime',
+        'signature_metadata' => 'array',
     ];
 
     public function candidate(): BelongsTo

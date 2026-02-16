@@ -60,21 +60,28 @@ class ContractGenerationService
     public function generateContent(Candidate $candidate, FormContract $formContract): string
     {
         try {
-            $templatePath = storage_path('app/secure/'.$formContract->template_path);
+            $templatePath = $formContract->template_path; // Relative path on secure disk
 
-            if (! file_exists($templatePath)) {
+            if (! Storage::disk('secure')->exists($templatePath)) {
                 throw new \Exception("Template file not found at: {$templatePath}");
             }
+            
+            $fullPath = Storage::disk('secure')->path($templatePath);
 
             $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
 
             $pdf = new TcpdfFpdi;
+            $pdf->SetAutoPageBreak(false); // CRITICAL: Prevent auto page breaks when placing elements near bottom
             $pdf->setPrintHeader(false);
             $pdf->setPrintFooter(false);
-            $pdf->SetMargins(0, 0, 0);
-            $pdf->SetAutoPageBreak(false);
+            
+            $pageCount = $pdf->setSourceFile($fullPath);
 
-            $pageCount = $pdf->setSourceFile($templatePath);
+            // ... remainder of generation loop ...
+            
+    // [SKIP TO resolvePlaceholders modification]
+    // I will do this in a separate chunk to be safe or use multi_replace if supported, but let's stick to single chunk per file if possible or just use ReplaceFileContent carefully.
+    // Actually, I can't jump lines in ReplaceFileContent. I will do the SetAutoPageBreak first.
 
             for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
                 $templateId = $pdf->importPage($pageNo);
@@ -84,7 +91,8 @@ class ContractGenerationService
 
                 // Apply overlays for this page
                 foreach ($formContract->placeholders as $mapping) {
-                    if (! isset($mapping['position']) || $mapping['position']['page'] !== $pageNo) {
+                    // Use loose comparison for page number (string vs int)
+                    if (! isset($mapping['position']) || $mapping['position']['page'] != $pageNo) {
                         continue;
                     }
 
@@ -115,6 +123,24 @@ class ContractGenerationService
                             $tempFiles = [];
 
                             if (is_string($value) && str_starts_with($value, 'http')) {
+                                // Optimization: If it's a local storage URL, try to resolve to path directly
+                                $appUrl = config('app.url');
+                                if (str_starts_with($value, $appUrl) || str_contains($value, '/storage/')) {
+                                    // Try to parse relative path from URL
+                                    $relativePath = parse_url($value, PHP_URL_PATH);
+                                    if ($relativePath) {
+                                        // Remove /storage prefix if present to match storage_path('app/public') logic
+                                        // Usually /storage/foo maps to storage/app/public/foo
+                                        $cleanPath = str_replace('/storage/', '', $relativePath);
+                                        $localPath = storage_path('app/public/' . ltrim($cleanPath, '/'));
+                                        
+                                        if (file_exists($localPath)) {
+                                            $foundPath = $localPath;
+                                            goto embed_image;
+                                        }
+                                    }
+                                }
+
                                 try {
                                     $response = \Illuminate\Support\Facades\Http::timeout(5)->get($value);
                                     if ($response->successful()) {
@@ -142,6 +168,8 @@ class ContractGenerationService
                                     }
                                 }
                             }
+
+                            embed_image:
 
                             try {
                                 if ($foundPath) {
@@ -241,6 +269,11 @@ class ContractGenerationService
                         }
                     }
 
+                    // Fallback: Check if it exists as a direct attribute on the candidate model (e.g. name, email)
+                    if (empty($value)) {
+                        $value = $candidate->{$fieldName} ?? $candidate->{$cleanKey} ?? $candidate->{$searchKey} ?? '';
+                    }
+
                     // If it's a file object from dynamic form, we want the path for images
                     if (is_array($value) && isset($value['path'])) {
                         $value = $value['path'];
@@ -255,6 +288,10 @@ class ContractGenerationService
                     // Fetch from verified data if available
                     $verifiedData = $candidate->data['verified_data'] ?? [];
                     $value = $verifiedData[$fieldName] ?? $verifiedData[$cleanKey] ?? '[Not Verified]';
+                    break;
+                case 'static_signature':
+                    // Value is the direct path/URL to the signature image
+                    $value = $mapping['value'] ?? '';
                     break;
                 case 'system':
                     if ($searchKey === 'date' || $cleanKey === 'date') {

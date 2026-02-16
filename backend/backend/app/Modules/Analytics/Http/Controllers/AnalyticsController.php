@@ -12,38 +12,7 @@ use Illuminate\Http\Request;
  
 class AnalyticsController extends Controller
 {
-    public function dashboard(): JsonResponse
-    {
-        // Unsigned documents count
-        $unsignedCount = Document::where('status', '!=', 'signed')->count();
- 
-        // Top 5 employees who haven't signed their documents yet
-        $topUnsigned = User::select('users.id', 'users.name')
-            ->leftJoin('documents', function($join) {
-                $join->on('users.id', '=', 'documents.assigned_to')
-                    ->where('documents.status', '!=', 'signed');
-            })
-            ->selectRaw('COUNT(documents.id) as unsigned_count')
-            ->groupBy('users.id', 'users.name')
-            ->orderByDesc('unsigned_count')
-            ->limit(5)
-            ->get();
- 
-        // Documents signed per day (last 14 days)
-        $signedPerDay = Document::where('status', 'signed')
-            ->where('updated_at', '>=', now()->subDays(14))
-            ->selectRaw('DATE(updated_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
- 
-        return response()->json([
-            'unsigned_count' => $unsignedCount,
-            'top_unsigned' => $topUnsigned,
-            'signed_per_day' => $signedPerDay,
-        ]);
-    }
- 
+  
     public function candidateAnalytics(Request $request): JsonResponse
     {
         $year = $request->input('year', now()->year);

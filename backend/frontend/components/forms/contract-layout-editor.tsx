@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
+import useSWR from "swr"
+import axios from "@/lib/axios"
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
@@ -32,9 +34,10 @@ interface Position {
 
 interface PlaceholderMapping {
     placeholder: string
-    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system'
+    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature'
     field_name: string
     field_type?: 'text' | 'image' | 'date' | 'file' // Added type tracking
+    value?: string // For static values (like signature URLs)
     position?: Position
 }
 
@@ -110,9 +113,14 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
         withCredentials: true,
     }), [fileUrl])
 
+    // Fetch saved signatures for static placement
+    const { data: signaturesData } = useSWR("/api/signatures", (url) => axios.get(url).then(res => res.data))
+    const savedSignatures = signaturesData?.data || []
+
     return (
         <div className="fixed inset-0 z-50 bg-background flex flex-col">
             {/* Header */}
+            {/* ... keeping header as is ... */}
             <div className="border-b p-4 flex items-center justify-between bg-card">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={onClose}>
@@ -130,7 +138,10 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                             <ZoomIn className="h-4 w-4" />
                         </Button>
                     </div>
-                    <Button onClick={() => onSave(localMappings)} className="gap-2">
+                    <Button onClick={() => {
+                        console.log("Saving mappings:", localMappings);
+                        onSave(localMappings);
+                    }} className="gap-2">
                         <Save className="h-4 w-4" />
                         Save Layout
                     </Button>
@@ -139,17 +150,34 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar - Placeholders */}
-                <div className="w-64 border-r bg-muted/10 p-4 overflow-y-auto">
+                <div className="w-72 border-r bg-muted/10 p-4 overflow-y-auto">
                     {/* System Tools */}
-                    <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">System Tools</h3>
+                    <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Interactive Tools</h3>
                     <div className="space-y-2 mb-6 border-b dark:border-slate-800 pb-6">
                         <div
                             className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer"
-                            onClick={() => addInstance({ placeholder: 'signature', source: 'system', field_name: 'signature', field_type: 'image' })}
+                            onClick={() => {
+                                const count = localMappings.filter(m => m.field_name === 'signature').length + 1;
+                                const uniqueId = Date.now().toString(36);
+                                addInstance({ placeholder: `signature_${uniqueId}`, source: 'system', field_name: 'signature', field_type: 'image' })
+                            }}
                         >
                             <div className="flex items-center gap-2">
                                 <PenTool className="h-4 w-4 text-purple-500" />
                                 <span className="text-sm font-medium">Candidate Signature</span>
+                            </div>
+                            <Plus className="h-3 w-3" />
+                        </div>
+                        <div
+                            className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer"
+                            onClick={() => {
+                                const uniqueId = Date.now().toString(36);
+                                addInstance({ placeholder: `initials_${uniqueId}`, source: 'system', field_name: 'initials', field_type: 'image' })
+                            }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <PenTool className="h-4 w-4 text-indigo-500" />
+                                <span className="text-sm font-medium">Candidate Initials</span>
                             </div>
                             <Plus className="h-3 w-3" />
                         </div>
@@ -175,7 +203,33 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                         </div>
                     </div>
 
-                    <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Form Fields</h3>
+                    {savedSignatures.length > 0 && (
+                        <>
+                            <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Company Signatures (Static)</h3>
+                            <div className="grid grid-cols-2 gap-2 mb-6 border-b dark:border-slate-800 pb-6">
+                                {savedSignatures.map((sig: any) => (
+                                    <div
+                                        key={sig.id}
+                                        className="border rounded p-2 bg-white dark:bg-slate-900 cursor-pointer hover:border-primary transition-colors"
+                                        onClick={() => addInstance({
+                                            placeholder: `static_sig_${sig.id}`,
+                                            source: 'static_signature',
+                                            field_name: 'static_signature',
+                                            field_type: 'image',
+                                            value: sig.value // Pass the image path/url
+                                        })}
+                                        title="Click to place as static image"
+                                    >
+                                        <div className="h-12 flex items-center justify-center overflow-hidden">
+                                            <img src={sig.value} alt="Sig" className="max-h-full max-w-full object-contain" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Form Fields (Auto-Fill)</h3>
                     <p className="text-[10px] text-muted-foreground mb-4">Click + to add a field to the current page. You can add the same field multiple times.</p>
                     <div className="space-y-2">
                         {uniquePlaceholders.map((m) => {

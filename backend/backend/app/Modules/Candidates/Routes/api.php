@@ -5,7 +5,6 @@ use App\Modules\Candidates\Http\Controllers\ContractController;
 use App\Modules\Candidates\Http\Controllers\IdentityVerificationController;
 use Illuminate\Support\Facades\Route;
 
-// Route::post('/candidates', [CandidateController::class, 'store']);
 Route::get('/candidates/verify-callback', [IdentityVerificationController::class, 'callback'])->middleware('throttle:60,1');
 Route::get('/candidates/didit-decision/{sessionId}', [IdentityVerificationController::class, 'getDiditDecision'])->middleware('auth:sanctum');
 

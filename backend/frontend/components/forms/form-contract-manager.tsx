@@ -21,8 +21,10 @@ interface Position {
 
 interface PlaceholderMapping {
     placeholder: string
-    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system'
+    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature'
     field_name: string
+    field_type?: 'text' | 'image' | 'date' | 'file'
+    value?: string
     position?: Position
 }
 
@@ -216,6 +218,11 @@ function ContractItem({ formId, contract, formFields, onDelete, onUpdateMapping,
     const [isEditing, setIsEditing] = useState(false)
     const [mappings, setMappings] = useState<PlaceholderMapping[]>(contract.placeholders || [])
     const [newPlaceholder, setNewPlaceholder] = useState("")
+
+    // Sync mappings when contract updates (e.g. after layout editor save)
+    useEffect(() => {
+        setMappings(contract.placeholders || [])
+    }, [contract.placeholders])
 
     const addPlaceholder = () => {
         if (!newPlaceholder) return

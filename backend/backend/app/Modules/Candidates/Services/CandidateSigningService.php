@@ -21,6 +21,7 @@ class CandidateSigningService
     {
         return DB::transaction(function () use ($candidate, $user, $data) {
             $overlays = $data['signatures'] ?? [];
+            $formContractId = $data['form_contract_id'] ?? null;
 
             // STEP 1: Pessimistic Lock - Lock the row for update
             $lockedCandidate = Candidate::where('id', $candidate->id)
@@ -31,99 +32,113 @@ class CandidateSigningService
                 throw new \Exception('Candidate not found');
             }
 
-            // STEP 2: Check if already signed
-            if ($lockedCandidate->contract_status === 'signed') {
-                throw new \RuntimeException(
-                    "Contract already signed by {$lockedCandidate->signedBy->name} at {$lockedCandidate->contract_signed_at}"
-                );
-            }
-
-            // STEP 3: Check and acquire soft lock
+            // STEP 2: Check and acquire soft lock (Scope lock to candidate for simplicity, even if signing one contract)
             $this->acquireSoftLock($lockedCandidate, $user, $data['session_id'] ?? null);
 
-            // STEP 4: Optimistic Lock Check
-            $currentVersion = $lockedCandidate->version;
-
-            try {
-                $lockedCandidate->load('generatedContracts');
-                $latest = $lockedCandidate->generatedContracts->sortByDesc('generated_at')->first();
-
-                if ($latest) {
-                    // Use generated contract if available
-                    $sourcePath = storage_path('app/secure/'.$latest->file_path);
-                    if (! file_exists($sourcePath)) {
-                        Log::warning("Generated contract record found but file missing: {$sourcePath}. Regenerating.");
-                    } else {
-                        $filename = basename($latest->file_path);
-                        $basePdfReady = true;
-                    }
-                }
-
-                if (! isset($basePdfReady)) {
-                    // Fallback: Generate the contract NOW
-                    $lockedCandidate->load('form.contracts');
-                    $contract = $lockedCandidate->form->contracts->first();
-                    if (! $contract) {
-                        throw new \Exception('No contract template available for signing.');
-                    }
-
-                    $this->contractGenService->generateContract($lockedCandidate, $contract);
-
-                    $latest = GeneratedContract::where('candidate_id', $lockedCandidate->id)
-                        ->where('form_contract_id', $contract->id)
-                        ->latest('generated_at')
-                        ->first();
-
-                    if (! $latest) {
-                        throw new \Exception('Failed to generate base contract for signing.');
-                    }
-
-                    $sourcePath = storage_path('app/secure/'.$latest->file_path);
-                    $filename = basename($latest->file_path);
-                }
-
-                // Generate a new filename for the signed version
-                $filename = $lockedCandidate->id.'_'.($latest->form_contract_id ?? '0').'_signed_'.time().'.pdf';
-
-                $signedPath = storage_path('app/secure/generated_contracts/signed/'.$filename);
-
-                if (! file_exists(dirname($signedPath))) {
-                    mkdir(dirname($signedPath), 0755, true);
-                }
-
-                // Embed signatures
-                $this->embedSignatures($sourcePath, $signedPath, $overlays);
-
-                // STEP 5: Atomic Update with Version Check
-                $updated = Candidate::where('id', $lockedCandidate->id)
-                    ->where('version', $currentVersion)
-                    ->update([
-                        'contract_status' => 'signed',
-                        'contract_path' => 'generated_contracts/signed/'.$filename,
-                        'contract_signed_at' => now(),
-                        'signed_by_user_id' => $user->id,
-                        'version' => $currentVersion + 1,
-                        // Clear soft lock
-                        'signing_in_progress_by' => null,
-                        'signing_started_at' => null,
-                        'signing_session_id' => null,
-                    ]);
-
-                if ($updated === 0) {
-                    throw new \RuntimeException('Contract was modified by another user. Please refresh and try again.');
-                }
-
-                $this->auditService->log('contract_signed', $lockedCandidate, [
-                    'filename' => $filename,
-                    'signed_path' => 'generated_contracts/signed/'.$filename,
-                ]);
-
-                return true;
-            } catch (\Exception $e) {
-                // Release soft lock on failure
-                $this->releaseSoftLock($lockedCandidate);
-                throw $e;
+            // STEP 3: Identify the specific contract to sign
+            $lockedCandidate->load('form.contracts');
+            
+            if ($formContractId) {
+                $contractDef = $lockedCandidate->form->contracts->where('id', $formContractId)->first();
+            } else {
+                // Fallback: Default to first contract if none specified (backward compatibility)
+                $contractDef = $lockedCandidate->form->contracts->first();
             }
+
+            if (! $contractDef) {
+                throw new \Exception('Contract definition not found.');
+            }
+
+            // Check if THIS contract is already signed
+            $existingSigned = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+                ->where('form_contract_id', $contractDef->id)
+                ->where('status', 'signed')
+                ->first();
+
+            if ($existingSigned) {
+                throw new \RuntimeException("This contract is already signed.");
+            }
+
+            // STEP 4: Get or Generate the PDF to be signed
+            $latest = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+                ->where('form_contract_id', $contractDef->id)
+                ->latest('generated_at')
+                ->first();
+
+            if ($latest && file_exists(storage_path('app/secure/'.$latest->file_path))) {
+                $sourcePath = storage_path('app/secure/'.$latest->file_path);
+            } else {
+                // Generate now
+                $this->contractGenService->generateContract($lockedCandidate, $contractDef);
+                
+                $latest = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+                    ->where('form_contract_id', $contractDef->id)
+                    ->latest('generated_at')
+                    ->first();
+                
+                if (!$latest) throw new \Exception('Failed to generate contract.');
+                $sourcePath = storage_path('app/secure/'.$latest->file_path);
+            }
+
+            // Generate a new filename for the signed version
+            $filename = $lockedCandidate->id.'_'.$contractDef->id.'_signed_'.time().'.pdf';
+            $signedPathRel = 'generated_contracts/signed/'.$filename;
+            $signedPath = storage_path('app/secure/'.$signedPathRel);
+
+            if (! file_exists(dirname($signedPath))) {
+                mkdir(dirname($signedPath), 0755, true);
+            }
+
+            // Embed signatures
+            $this->embedSignatures($sourcePath, $signedPath, $overlays);
+
+            // STEP 5: Update GeneratedContract Record
+            $latest->update([
+                'status' => 'signed',
+                'signed_at' => now(),
+                'signed_path' => $signedPathRel,
+                'signature_metadata' => [
+                    'ip_address' => $data['ip_address'] ?? null,
+                    'user_agent' => $data['user_agent'] ?? null,
+                    'signed_by' => $user->id,
+                ]
+            ]);
+
+            // STEP 6: Check if ALL contracts are signed
+            // Logic: Do we have any form contract that does NOT have a signed generated contract?
+            $allContractIds = $lockedCandidate->form->contracts->pluck('id');
+            $signedContractIds = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+                ->where('status', 'signed')
+                ->pluck('form_contract_id');
+            
+            $allSigned = $allContractIds->diff($signedContractIds)->isEmpty();
+
+            if ($allSigned) {
+                $lockedCandidate->update([
+                    'contract_status' => 'signed',
+                    'contract_path' => $signedPathRel, // Point to the last signed one or a zip? accessing first is fine for legacy.
+                    'contract_signed_at' => now(),
+                    'signed_by_user_id' => $user->id,
+                    // Clear soft lock
+                    'signing_in_progress_by' => null,
+                    'signing_started_at' => null,
+                    'signing_session_id' => null,
+                ]);
+            } else {
+                // Just release lock? Or keep "signing_in_progress"? 
+                // Maybe release lock to let others sign other contracts? 
+                // For now, let's keep it locked or release it?
+                // Release soft lock because this specific action is done.
+                 $this->releaseSoftLock($lockedCandidate, $data['session_id'] ?? null);
+            }
+
+            $this->auditService->log('contract_signed', $lockedCandidate, [
+                'filename' => $filename,
+                'signed_path' => $signedPathRel,
+                'contract_name' => $contractDef->name
+            ]);
+
+            return true;
         }, 5);
     }
 

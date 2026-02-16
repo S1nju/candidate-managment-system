@@ -20,13 +20,8 @@ class ContractController extends Controller
 
     public function generate(Candidate $candidate): JsonResponse
     {
-        // If already signed, return the signed contract
-        if (($candidate->contract_status === 'signed' || $candidate->contract_path) && $candidate->contract_path) {
-            return response()->json([
-                'file' => $candidate->contract_path,
-                'is_signed' => true,
-            ]);
-        }
+        // If candidate is fully signed (legacy check or global status), we might want to return that?
+        // But for multi-contract, we always want the list.
 
         $candidate->load('form.contracts');
 
@@ -34,24 +29,54 @@ class ContractController extends Controller
             return response()->json(['message' => 'No contracts available for this candidate'], 404);
         }
 
+        // Ensure we create pending records for all contracts if they don't exist?
+        // The generator service does generation on demand usually, but let's see.
+        // getCandidateDataWithPlaceholders just resolves data, doesn't generate PDF.
+        
         $previewData = $this->generatorService->getCandidateDataWithPlaceholders($candidate);
 
         if (empty($previewData)) {
             return response()->json(['message' => 'Failed to resolve contract data'], 404);
         }
 
-        // For now, support one contract per candidate in the signing UI
-        $first = $previewData[0];
+        // Enrich with status
+        $contracts = [];
+        foreach ($previewData as $item) {
+             // Find latest generated record
+             $generated = \App\Modules\Forms\Models\GeneratedContract::where('candidate_id', $candidate->id)
+                 ->where('form_contract_id', $item['contract_id'])
+                 ->latest('generated_at')
+                 ->first();
+             
+             $contracts[] = [
+                 'id' => $item['contract_id'],
+                 'name' => $candidate->form->contracts->where('id', $item['contract_id'])->first()->name, // Get name
+                 'template_path' => $item['template_path'],
+                 'preview_data' => $item['data'],
+                 'placeholders' => $item['placeholders'],
+                 'status' => $generated ? $generated->status : 'pending',
+                 'signed_at' => $generated ? $generated->signed_at : null,
+                 'is_signed' => $generated && $generated->status === 'signed',
+             ];
+        }
 
-        // If we strictly want to avoid generating a PDF on disk for preview,
-        // we should just return the template path and the data to be overlaid by frontend or ignored until signing.
-        // The current 'first' contains 'template_path'.
+        // Determine "current" or "active" contract (first pending, or first if all signed)
+        $active = collect($contracts)->firstWhere('status', 'pending') ?? $contracts[0];
+
+        \Illuminate\Support\Facades\Log::info('Contract generation debug:', [
+            'candidate_id' => $candidate->id,
+            'contracts_count' => count($contracts),
+            'active_contract_placeholders' => $active['placeholders'] ?? 'none'
+        ]);
 
         return response()->json([
-            'file' => $first['template_path'], // Return template directly
-            'preview_data' => $first['data'],
-            'placeholders' => $first['placeholders'],
-            'is_signed' => false,
+            'contracts' => $contracts,
+            // Legacy/Convenience fields for default view
+            'file' => $active['template_path'], 
+            'preview_data' => $active['preview_data'],
+            'placeholders' => $active['placeholders'],
+            'is_signed' => $active['is_signed'],
+            'active_contract_id' => $active['id'],
         ]);
     }
 
@@ -62,6 +87,7 @@ class ContractController extends Controller
             'signatures.*.type' => 'required|string',
             'signatures.*.value' => 'required|string',
             'signatures.*.placement' => 'required|array',
+            'form_contract_id' => 'required|integer|exists:form_contracts,id',
             'session_id' => 'nullable|string',
             'ip_address' => 'nullable|string',
             'user_agent' => 'nullable|string',
@@ -130,19 +156,38 @@ class ContractController extends Controller
         return Storage::disk('secure')->download($path, basename($path));
     }
 
-    public function preview(Candidate $candidate): \Illuminate\Http\Response
+    public function preview(Request $request, Candidate $candidate): \Illuminate\Http\Response
     {
-        // If already signed, return the signed file
-        if ($candidate->contract_status === 'signed' && $candidate->contract_path && Storage::disk('secure')->exists($candidate->contract_path)) {
-            $fileContent = Storage::disk('secure')->get($candidate->contract_path);
+        $contractId = $request->input('contract_id');
 
+        // Check if specific contract is signed
+        if ($contractId) {
+             $generated = \App\Modules\Forms\Models\GeneratedContract::where('candidate_id', $candidate->id)
+                 ->where('form_contract_id', $contractId)
+                 ->latest('generated_at')
+                 ->first();
+             
+             if ($generated && $generated->status === 'signed' && $generated->signed_path && Storage::disk('secure')->exists($generated->signed_path)) {
+                $fileContent = Storage::disk('secure')->get($generated->signed_path);
+                return response($fileContent)
+                    ->header('Content-Type', 'application/pdf')
+                    ->header('Content-Disposition', 'inline; filename="contract_signed.pdf"');
+             }
+        } elseif ($candidate->contract_status === 'signed' && $candidate->contract_path && Storage::disk('secure')->exists($candidate->contract_path)) {
+            // Legacy fall back
+            $fileContent = Storage::disk('secure')->get($candidate->contract_path);
             return response($fileContent)
                 ->header('Content-Type', 'application/pdf')
                 ->header('Content-Disposition', 'inline; filename="contract_signed.pdf"');
         }
 
         $candidate->load('form.contracts');
-        $contract = $candidate->form->contracts->first();
+        
+        if ($contractId) {
+            $contract = $candidate->form->contracts->where('id', $contractId)->first();
+        } else {
+            $contract = $candidate->form->contracts->first();
+        }
 
         if (! $contract) {
             abort(404, 'No contract found');
