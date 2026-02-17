@@ -8,8 +8,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 use App\Models\User;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 class Form extends Model
 {
+    use HasFactory, \Illuminate\Database\Eloquent\Concerns\HasUuids;
+
+    protected static function newFactory()
+    {
+        return \Database\Factories\FormFactory::new();
+    }
+
+    public function uniqueIds()
+    {
+        return ['uuid'];
+    }
+
     protected $fillable = [
         'uuid',
         'title',
@@ -17,22 +31,14 @@ class Form extends Model
         'status',
         'kyc_enabled',
         'created_by',
+        'role_id',
     ];
 
     protected $casts = [
         'kyc_enabled' => 'boolean',
     ];
 
-    protected static function boot()
-    {
-        parent::boot();
-        
-        static::creating(function ($form) {
-            if (empty($form->uuid)) {
-                $form->uuid = (string) Str::uuid();
-            }
-        });
-    }
+    // ... boot ...
 
     public function fields(): HasMany
     {
@@ -42,6 +48,11 @@ class Form extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(\Spatie\Permission\Models\Role::class);
     }
 
     public function contracts(): HasMany

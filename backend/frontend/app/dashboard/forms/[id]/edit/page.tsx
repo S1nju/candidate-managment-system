@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
+import useSWR from "swr"
 import axios from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +30,9 @@ export default function EditFormPage() {
     const [kycEnabled, setKycEnabled] = useState(false)
     const [fields, setFields] = useState<FormField[]>([])
 
+    const { data: roles } = useSWR('/api/admin/roles', url => axios.get(url).then(res => res.data).catch(() => []))
+    const [roleId, setRoleId] = useState<string>("")
+
     useEffect(() => {
         const fetchForm = async () => {
             try {
@@ -39,6 +43,7 @@ export default function EditFormPage() {
                 setStatus(form.status)
                 setKycEnabled(form.kyc_enabled)
                 setFields(form.fields || [])
+                setRoleId(form.role_id ? String(form.role_id) : "")
             } catch (error) {
                 toast({ title: "Failed to load form", variant: "destructive" })
                 router.push("/dashboard/forms")
@@ -63,6 +68,7 @@ export default function EditFormPage() {
                 description,
                 status,
                 kyc_enabled: kycEnabled,
+                role_id: (roleId && roleId !== "0") ? roleId : null,
                 fields
             })
             toast({ title: "Form updated successfully" })
@@ -166,6 +172,24 @@ export default function EditFormPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
+
+                                {roles && roles.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="role">Assign to Role (Organization)</Label>
+                                        <Select value={roleId} onValueChange={setRoleId}>
+                                            <SelectTrigger className="bg-background">
+                                                <SelectValue placeholder="Select a role..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="0">None (Public/Admin only)</SelectItem>
+                                                {roles.map((role: any) => (
+                                                    <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">Candidates will be visible to users with this role.</p>
+                                    </div>
+                                )}
 
                                 <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md border">
                                     <div className="space-y-0.5">

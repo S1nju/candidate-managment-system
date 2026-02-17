@@ -66,6 +66,7 @@ export function CandidateList() {
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [status, setStatus] = useState("all")
+  const [formId, setFormId] = useState("all")
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [isEmailOpen, setIsEmailOpen] = useState(false)
@@ -83,11 +84,13 @@ export function CandidateList() {
     page: page.toString(),
     search: debouncedSearch,
     status: status,
+    form_id: formId,
     per_page: "15"
   })
 
   const { data: response, error, isLoading, mutate } = useSWR(`/api/candidates?${queryParams.toString()}`)
   const { data: workers } = useSWR(isAdmin ? "/api/admin/users" : null)
+  const { data: forms } = useSWR("/api/forms")
 
   const candidates = (response?.data as Candidate[] || [])
   const pagination = {
@@ -163,6 +166,20 @@ export function CandidateList() {
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
+          {isAdmin && (
+            <Select value={formId} onValueChange={(val) => { setFormId(val); setPage(1); }}>
+              <SelectTrigger className="w-[180px] h-10 bg-card">
+                <SelectValue placeholder="All Forms" />
+              </SelectTrigger>
+              <SelectContent className="bg-card">
+                <SelectItem value="all">All Forms</SelectItem>
+                {forms?.map((f: any) => (
+                  <SelectItem key={f.id} value={f.id.toString()}>{f.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Select value={status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[180px] h-10 bg-card">
               <SelectValue placeholder={t("candidates.list.filter_status")} />

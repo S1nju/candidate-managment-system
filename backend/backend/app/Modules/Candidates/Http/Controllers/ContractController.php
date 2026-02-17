@@ -23,6 +23,11 @@ class ContractController extends Controller
         // If candidate is fully signed (legacy check or global status), we might want to return that?
         // But for multi-contract, we always want the list.
 
+        // Check if rejected
+        if ($candidate->contract_status === 'rejected') {
+            abort(403, 'This contract has been rejected.');
+        }
+
         $candidate->load('form.contracts');
 
         if (! $candidate->form || $candidate->form->contracts->isEmpty()) {
@@ -82,6 +87,11 @@ class ContractController extends Controller
 
     public function sign(Request $request, Candidate $candidate): JsonResponse
     {
+        // Check if rejected
+        if ($candidate->contract_status === 'rejected') {
+            abort(403, 'This contract has been rejected and cannot be signed.');
+        }
+
         $data = $request->validate([
             'signatures' => 'required|array',
             'signatures.*.type' => 'required|string',
@@ -158,29 +168,51 @@ class ContractController extends Controller
 
     public function preview(Request $request, Candidate $candidate): \Illuminate\Http\Response
     {
+        // 1. Check if rejected
+        if ($candidate->contract_status === 'rejected') {
+            abort(403, 'This contract has been rejected and cannot be viewed.');
+        }
+
         $contractId = $request->input('contract_id');
 
-        // Check if specific contract is signed
+        // 2. Check if specific contract is signed
         if ($contractId) {
              $generated = \App\Modules\Forms\Models\GeneratedContract::where('candidate_id', $candidate->id)
                  ->where('form_contract_id', $contractId)
                  ->latest('generated_at')
                  ->first();
              
-             if ($generated && $generated->status === 'signed' && $generated->signed_path && Storage::disk('secure')->exists($generated->signed_path)) {
-                $fileContent = Storage::disk('secure')->get($generated->signed_path);
+             if ($generated && $generated->status === 'signed') {
+                 // User requested "not possible to see ... after signing it".
+                 // This implies they shouldn't see the INTERACTIVE preview.
+                 // If they want the signed PDF, they should use the download endpoint or this specific block if intended.
+                 // However, "not possible to see" suggest strictness. 
+                 // I will return the SIGNED PDF if available (standard behavior), but block RE-SIGNING view.
+                 // Actually, let's block the *generation* of a new preview if it's signed.
+                 
+                if ($generated->signed_path && Storage::disk('secure')->exists($generated->signed_path)) {
+                    // Return signed PDF directly (read-only view)
+                    $fileContent = Storage::disk('secure')->get($generated->signed_path);
+                    return response($fileContent)
+                        ->header('Content-Type', 'application/pdf')
+                        ->header('Content-Disposition', 'inline; filename="contract_signed.pdf"');
+                } else {
+                     abort(403, 'Contract is signed but file is missing.');
+                }
+             }
+        } elseif ($candidate->contract_status === 'signed') {
+             // Accessing global preview but candidate is signed
+             if ($candidate->contract_path && Storage::disk('secure')->exists($candidate->contract_path)) {
+                $fileContent = Storage::disk('secure')->get($candidate->contract_path);
                 return response($fileContent)
                     ->header('Content-Type', 'application/pdf')
                     ->header('Content-Disposition', 'inline; filename="contract_signed.pdf"');
              }
-        } elseif ($candidate->contract_status === 'signed' && $candidate->contract_path && Storage::disk('secure')->exists($candidate->contract_path)) {
-            // Legacy fall back
-            $fileContent = Storage::disk('secure')->get($candidate->contract_path);
-            return response($fileContent)
-                ->header('Content-Type', 'application/pdf')
-                ->header('Content-Disposition', 'inline; filename="contract_signed.pdf"');
+             abort(403, 'Contract is already signed.');
         }
 
+        // If we get here, it's pending.
+        
         $candidate->load('form.contracts');
         
         if ($contractId) {

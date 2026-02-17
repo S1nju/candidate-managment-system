@@ -47,6 +47,8 @@ class FormController extends Controller
             'fields.*.order' => 'integer',
             'fields.*.page' => 'nullable|integer',
             'fields.*.page_title' => 'nullable|string|max:255',
+            'fields.*.options' => 'nullable|array',
+            'fields.*.conditions' => 'nullable|array',
         ]);
 
         $form = Form::create([
@@ -66,6 +68,8 @@ class FormController extends Controller
                 'order' => $fieldData['order'] ?? $index,
                 'page' => $fieldData['page'] ?? 1,
                 'page_title' => $fieldData['page_title'] ?? null,
+                'options' => $fieldData['options'] ?? null,
+                'conditions' => $fieldData['conditions'] ?? null,
             ]);
         }
 
@@ -95,6 +99,7 @@ class FormController extends Controller
             'description' => 'nullable|string',
             'status' => 'in:draft,active,disabled',
             'kyc_enabled' => 'boolean',
+            'role_id' => 'nullable|exists:roles,id',
             'fields' => 'sometimes|array',
             'fields.*.id' => 'nullable|exists:form_fields,id',
             'fields.*.type' => 'required|string',
@@ -104,6 +109,8 @@ class FormController extends Controller
             'fields.*.order' => 'integer',
             'fields.*.page' => 'nullable|integer',
             'fields.*.page_title' => 'nullable|string|max:255',
+            'fields.*.options' => 'nullable|array',
+            'fields.*.conditions' => 'nullable|array',
         ]);
 
         $form->update($validated);
@@ -114,26 +121,22 @@ class FormController extends Controller
             $form->fields()->whereNotIn('id', $fieldIds)->delete();
 
             foreach ($validated['fields'] as $index => $fieldData) {
+                $fieldAttributes = [
+                    'type' => $fieldData['type'],
+                    'label' => $fieldData['label'],
+                    'name' => $fieldData['name'],
+                    'validation_rules' => $fieldData['validation_rules'] ?? null,
+                    'order' => $fieldData['order'] ?? $index,
+                    'page' => $fieldData['page'] ?? 1,
+                    'page_title' => $fieldData['page_title'] ?? null,
+                    'options' => $fieldData['options'] ?? null,
+                    'conditions' => $fieldData['conditions'] ?? null,
+                ];
+
                 if (isset($fieldData['id'])) {
-                    $form->fields()->where('id', $fieldData['id'])->update([
-                        'type' => $fieldData['type'],
-                        'label' => $fieldData['label'],
-                        'name' => $fieldData['name'],
-                        'validation_rules' => $fieldData['validation_rules'] ?? null,
-                        'order' => $fieldData['order'] ?? $index,
-                        'page' => $fieldData['page'] ?? 1,
-                        'page_title' => $fieldData['page_title'] ?? null,
-                    ]);
+                    $form->fields()->where('id', $fieldData['id'])->update($fieldAttributes);
                 } else {
-                    $form->fields()->create([
-                        'type' => $fieldData['type'],
-                        'label' => $fieldData['label'],
-                        'name' => $fieldData['name'],
-                        'validation_rules' => $fieldData['validation_rules'] ?? null,
-                        'order' => $fieldData['order'] ?? $index,
-                        'page' => $fieldData['page'] ?? 1,
-                        'page_title' => $fieldData['page_title'] ?? null,
-                    ]);
+                    $form->fields()->create($fieldAttributes);
                 }
             }
         }

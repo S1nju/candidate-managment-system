@@ -128,14 +128,24 @@ export function DashboardSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/security"}>
-                    <Link href="/dashboard/security">
-                      <ShieldIcon className="size-4" />
-                      <span>{t("sidebar.security")}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/admin/roles")}>
+                      <Link href="/dashboard/admin/roles">
+                        <ShieldIcon className="size-4" />
+                        <span>Roles</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/security"}>
+                      <Link href="/dashboard/security">
+                        <ShieldIcon className="size-4" />
+                        <span>{t("sidebar.security")}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

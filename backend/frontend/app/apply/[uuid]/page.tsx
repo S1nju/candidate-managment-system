@@ -51,9 +51,26 @@ export default function PublicFormPage() {
         setFormData(prev => ({ ...prev, [name]: value }))
     }
 
+    const checkConditions = (field: any) => {
+        if (!field.conditions || field.conditions.length === 0) return true
+
+        return field.conditions.every((cond: any) => {
+            const fieldValue = formData[cond.field]
+            if (cond.operator === 'equals') {
+                return fieldValue == cond.value
+            } else if (cond.operator === 'not_equals') {
+                return fieldValue != cond.value
+            }
+            return true
+        })
+    }
+
     const validateCurrentPage = () => {
         const pageFields = form.fields.filter((f: any) => (f.page || 1) === currentPage)
         for (const field of pageFields) {
+            // Skip validation if field is hidden by conditions
+            if (!checkConditions(field)) continue;
+
             if (field.validation_rules?.required && !formData[field.name]) {
                 toast({
                     title: `Missing field: ${field.label}`,
@@ -153,7 +170,11 @@ export default function PublicFormPage() {
         )
     }
 
-    const currentPageFields = form.fields.filter((f: any) => (f.page || 1) === currentPage)
+
+    const currentPageFields = form.fields
+        .filter((f: any) => (f.page || 1) === currentPage)
+        .filter((f: any) => checkConditions(f))
+
     const currentPageTitle = currentPageFields[0]?.page_title || "Information"
     const totalPagesCount = pages.length;
     const progress = (pages.indexOf(currentPage) + 1) / totalPagesCount * 100;

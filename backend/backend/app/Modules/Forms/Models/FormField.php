@@ -16,10 +16,14 @@ class FormField extends Model
         'name',
         'validation_rules',
         'order',
+        'options',
+        'conditions',
     ];
 
     protected $casts = [
         'validation_rules' => 'array',
+        'options' => 'array',
+        'conditions' => 'array',
     ];
 
     public function form(): BelongsTo

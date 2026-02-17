@@ -175,8 +175,19 @@ class CandidateSigningService
                                 $imageData = explode('base64,', $val);
                                 $imageBinary = base64_decode($imageData[1]);
 
-                                $pdf->Image('@'.$imageBinary, $x - 20, $y - 10, 40, 0, 'PNG');
-                                Log::info('EmbedSignatures: Base64 image embedded.');
+                                if ($imageBinary === false) {
+                                    Log::error('EmbedSignatures: Base64 decode failed for value mapping.');
+                                    continue;
+                                }
+
+                                // Center the image (assuming roughly 40mm width, 20mm height)
+                                $w = 40;
+                                $h = 20; // estimate
+                                $finalX = max(0, $x - ($w / 2));
+                                $finalY = max(0, $y - ($h / 2));
+
+                                $pdf->Image('@'.$imageBinary, $finalX, $finalY, $w, 0, 'PNG');
+                                Log::info("EmbedSignatures: Base64 image embedded at X:$finalX Y:$finalY");
                             } else {
                                 // Handle URL or path
                                 Log::info('EmbedSignatures: Handling URL/Path signature: '.substr($val, 0, 50));
@@ -200,7 +211,7 @@ class CandidateSigningService
                                         Log::error("EmbedSignatures: Detected HTTP request to itself. Avoiding deadlock for $val");
                                     } else {
                                         try {
-                                            $imageContent = file_get_contents($val, false, stream_context_create([
+                                            $imageContent = @file_get_contents($val, false, stream_context_create([
                                                 'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
                                                 'http' => ['timeout' => 5],
                                             ]));
@@ -212,8 +223,13 @@ class CandidateSigningService
                                 }
 
                                 if ($imageContent) {
-                                    $pdf->Image('@'.$imageContent, $x - 20, $y - 10, 40, 0, 'PNG');
-                                    Log::info('EmbedSignatures: URL image embedded.');
+                                    $w = 40;
+                                    $h = 20;
+                                    $finalX = max(0, $x - ($w / 2));
+                                    $finalY = max(0, $y - ($h / 2));
+                                    
+                                    $pdf->Image('@'.$imageContent, $finalX, $finalY, $w, 0, 'PNG');
+                                    Log::info("EmbedSignatures: URL image embedded at X:$finalX Y:$finalY");
                                 } else {
                                     Log::warning('EmbedSignatures: Could not resolve signature image: '.substr($val, 0, 50));
                                 }

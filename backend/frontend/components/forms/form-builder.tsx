@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus, GripVertical, ChevronDown, ChevronUp, Layout } from "lucide-react"
+import { Trash2, Plus, GripVertical, ChevronDown, ChevronUp, Layout, X } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -18,10 +18,13 @@ export interface FormField {
         required: boolean
         max?: number
         min?: number
+        options?: string[]
     }
     order: number
     page?: number
     page_title?: string
+    options?: string[]
+    conditions?: { field: string; operator: string; value: string }[]
 }
 
 interface FormBuilderProps {
@@ -71,6 +74,46 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
             ...updated[index],
             validation_rules: { ...updated[index].validation_rules, ...updates }
         }
+        setFields(updated)
+        onChange(updated)
+    }
+
+    // Helper to manage options (now top-level, but keeping backward compat if needed)
+    const updateOptions = (index: number, newOptions: string[]) => {
+        const updated = [...fields]
+        // Store in both places for now to be safe, or just top level if backend prefers
+        updated[index] = { ...updated[index], options: newOptions }
+        // Also update validation_rules for legacy frontend support if needed
+        updated[index].validation_rules = { ...updated[index].validation_rules, options: newOptions } as any
+        setFields(updated)
+        onChange(updated)
+    }
+
+    const addCondition = (index: number) => {
+        const updated = [...fields]
+        const currentConditions = updated[index].conditions || []
+        updated[index] = {
+            ...updated[index],
+            conditions: [...currentConditions, { field: "", operator: "equals", value: "" }]
+        }
+        setFields(updated)
+        onChange(updated)
+    }
+
+    const updateCondition = (fieldIndex: number, conditionIndex: number, updates: any) => {
+        const updated = [...fields]
+        const conditions = [...(updated[fieldIndex].conditions || [])]
+        conditions[conditionIndex] = { ...conditions[conditionIndex], ...updates }
+        updated[fieldIndex] = { ...updated[fieldIndex], conditions }
+        setFields(updated)
+        onChange(updated)
+    }
+
+    const removeCondition = (fieldIndex: number, conditionIndex: number) => {
+        const updated = [...fields]
+        const conditions = [...(updated[fieldIndex].conditions || [])]
+        conditions.splice(conditionIndex, 1)
+        updated[fieldIndex] = { ...updated[fieldIndex], conditions }
         setFields(updated)
         onChange(updated)
     }
@@ -168,89 +211,92 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                 </Button>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs">{t("forms.builder.field_label")}</Label>
-                                                    <Input
-                                                        className="h-9 bg-background"
-                                                        value={field.label}
-                                                        onChange={(e) => updateField(field.originalIndex, { label: e.target.value, name: ['name', 'email'].includes(field.name) ? field.name : e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs">{t("forms.builder.field_type")}</Label>
-                                                    <Select
-                                                        value={field.type}
-                                                        onValueChange={(val) => updateField(field.originalIndex, { type: val })}
-                                                        disabled={['name', 'email'].includes(field.name)}
-                                                    >
-                                                        <SelectTrigger className="h-9 bg-background">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="text">Text</SelectItem>
-                                                            <SelectItem value="number">Number</SelectItem>
-                                                            <SelectItem value="email">Email</SelectItem>
-                                                            <SelectItem value="date">Date</SelectItem>
-                                                            <SelectItem value="select">Dropdown</SelectItem>
-                                                            <SelectItem value="radio">Options</SelectItem>
-                                                            <SelectItem value="textarea">Paragraph</SelectItem>
-                                                            <SelectItem value="file">File Upload</SelectItem>
-                                                            <SelectItem value="image">Image Upload</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs">{t("forms.builder.move_page")}</Label>
-                                                    <Select
-                                                        value={String(field.page || 1)}
-                                                        onValueChange={(val) => updateField(field.originalIndex, { page: parseInt(val) })}
-                                                    >
-                                                        <SelectTrigger className="h-9 bg-background">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {pages.map(p => (
-                                                                <SelectItem key={p} value={String(p)}>Page {p}</SelectItem>
-                                                            ))}
-                                                            <SelectItem value={String(Math.max(...pages) + 1)}>+ New Page ({Math.max(...pages) + 1})</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                <div className="space-y-2 flex flex-col justify-end">
-                                                    <div className="flex items-center space-x-2 pb-2">
-                                                        <Checkbox
-                                                            id={`req-${field.originalIndex}`}
-                                                            checked={field.validation_rules.required}
-                                                            onCheckedChange={(checked: boolean) => updateValidation(field.originalIndex, { required: !!checked })}
-                                                            disabled={['name', 'email'].includes(field.name)}
+                                            <div className="flex-1 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">{t("forms.builder.field_label")}</Label>
+                                                        <Input
+                                                            className="h-9 bg-background"
+                                                            value={field.label}
+                                                            onChange={(e) => updateField(field.originalIndex, { label: e.target.value, name: ['name', 'email'].includes(field.name) ? field.name : e.target.value.toLowerCase().replace(/\s+/g, '_') })}
                                                         />
-                                                        <label htmlFor={`req-${field.originalIndex}`} className="text-[12px] font-medium leading-none">
-                                                            {t("forms.builder.mandatory")}
-                                                        </label>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">{t("forms.builder.field_type")}</Label>
+                                                        <Select
+                                                            value={field.type}
+                                                            onValueChange={(val) => updateField(field.originalIndex, { type: val })}
+                                                            disabled={['name', 'email'].includes(field.name)}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-background">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="text">Text</SelectItem>
+                                                                <SelectItem value="number">Number</SelectItem>
+                                                                <SelectItem value="email">Email</SelectItem>
+                                                                <SelectItem value="date">Date</SelectItem>
+                                                                <SelectItem value="select">Dropdown</SelectItem>
+                                                                <SelectItem value="radio">Options</SelectItem>
+                                                                <SelectItem value="textarea">Paragraph</SelectItem>
+                                                                <SelectItem value="file">File Upload</SelectItem>
+                                                                <SelectItem value="image">Image Upload</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">{t("forms.builder.move_page")}</Label>
+                                                        <Select
+                                                            value={String(field.page || 1)}
+                                                            onValueChange={(val) => updateField(field.originalIndex, { page: parseInt(val) })}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-background">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {pages.map(p => (
+                                                                    <SelectItem key={p} value={String(p)}>Page {p}</SelectItem>
+                                                                ))}
+                                                                <SelectItem value={String(Math.max(...pages) + 1)}>+ New Page ({Math.max(...pages) + 1})</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div className="space-y-2 flex flex-col justify-end">
+                                                        <div className="flex items-center space-x-2 pb-2">
+                                                            <Checkbox
+                                                                id={`req-${field.originalIndex}`}
+                                                                checked={field.validation_rules.required}
+                                                                onCheckedChange={(checked: boolean) => updateValidation(field.originalIndex, { required: !!checked })}
+                                                                disabled={['name', 'email'].includes(field.name)}
+                                                            />
+                                                            <label htmlFor={`req-${field.originalIndex}`} className="text-[12px] font-medium leading-none">
+                                                                {t("forms.builder.mandatory")}
+                                                            </label>
+                                                        </div>
                                                     </div>
                                                 </div>
 
+                                                {/* Options Editor */}
                                                 {['select', 'radio'].includes(field.type) && (
-                                                    <div className="col-span-1 md:col-span-4 space-y-2 bg-muted/50 p-3 rounded-md border dark:border-slate-800 mt-1">
-                                                        <Label className="text-xs uppercase text-muted-foreground font-bold">{t("forms.builder.options")}</Label>
+                                                    <div className="bg-muted/30 p-3 rounded-md border border-dashed dark:border-slate-800">
+                                                        <Label className="text-xs uppercase text-muted-foreground font-bold mb-2 block">{t("forms.builder.options")}</Label>
                                                         <div className="flex flex-wrap gap-2">
-                                                            {((field.validation_rules as any).options || []).map((opt: string, optIdx: number) => (
-                                                                <div key={optIdx} className="flex items-center gap-1 bg-background border px-2 py-1 rounded text-sm group/opt">
+                                                            {(field.options || (field.validation_rules as any).options || []).map((opt: string, optIdx: number) => (
+                                                                <div key={optIdx} className="flex items-center gap-1 bg-background border px-2 py-1 rounded text-sm group/opt shadow-sm">
                                                                     <span>{opt}</span>
                                                                     <Button
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
-                                                                        className="h-4 w-4 text-destructive"
+                                                                        className="h-4 w-4 text-destructive hover:bg-destructive/10 rounded-full"
                                                                         onClick={(e) => {
                                                                             e.preventDefault();
-                                                                            const opts = [...((field.validation_rules as any).options || [])]
+                                                                            const opts = [...(field.options || [])]
                                                                             opts.splice(optIdx, 1)
-                                                                            updateValidation(field.originalIndex, { options: opts } as any)
+                                                                            updateOptions(field.originalIndex, opts)
                                                                         }}
                                                                     >
                                                                         <Trash2 className="h-3 w-3" />
@@ -259,15 +305,15 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                             ))}
                                                             <div className="flex gap-1 items-center">
                                                                 <Input
-                                                                    placeholder="Add option and press Enter"
-                                                                    className="h-8 w-44 text-xs bg-background"
+                                                                    placeholder="Add option..."
+                                                                    className="h-7 w-40 text-xs bg-background"
                                                                     onKeyDown={(e) => {
                                                                         if (e.key === 'Enter') {
                                                                             e.preventDefault()
                                                                             const val = e.currentTarget.value.trim()
                                                                             if (val) {
-                                                                                const opts = [...((field.validation_rules as any).options || []), val]
-                                                                                updateValidation(field.originalIndex, { options: opts } as any)
+                                                                                const opts = [...(field.options || (field.validation_rules as any).options || []), val]
+                                                                                updateOptions(field.originalIndex, opts)
                                                                                 e.currentTarget.value = ""
                                                                             }
                                                                         }
@@ -278,17 +324,61 @@ export function FormBuilder({ initialFields = [], onChange }: FormBuilderProps) 
                                                     </div>
                                                 )}
 
-                                                {(field.type === 'text' || field.type === 'textarea') && (
-                                                    <div className="col-span-1 md:col-span-2 space-y-1">
-                                                        <Label className="text-xs text-muted-foreground">MaxLength</Label>
-                                                        <Input
-                                                            type="number"
-                                                            className="h-8 bg-background"
-                                                            value={field.validation_rules.max || ""}
-                                                            onChange={(e) => updateValidation(field.originalIndex, { max: parseInt(e.target.value) || undefined })}
-                                                        />
+                                                {/* Conditions Editor */}
+                                                {!['name', 'email'].includes(field.name) && (
+                                                    <div className="mt-2">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Label className="text-xs font-semibold text-muted-foreground">Logic Conditions</Label>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => addCondition(field.originalIndex)}
+                                                                className="h-5 text-xs px-2 text-blue-600 hover:text-blue-700"
+                                                            >
+                                                                + Add Rule
+                                                            </Button>
+                                                        </div>
+                                                        {field.conditions && field.conditions.length > 0 && (
+                                                            <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-md border text-sm">
+                                                                {field.conditions.map((cond, condIdx) => (
+                                                                    <div key={condIdx} className="flex items-center gap-2">
+                                                                        <span className="text-xs text-muted-foreground w-8">Show if</span>
+                                                                        <Select value={cond.field} onValueChange={(val) => updateCondition(field.originalIndex, condIdx, { field: val })}>
+                                                                            <SelectTrigger className="h-7 w-32 text-xs">
+                                                                                <SelectValue placeholder="Select Field" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {fields.filter(f => f.name !== field.name && ['select', 'radio'].includes(f.type)).map(f => (
+                                                                                    <SelectItem key={f.name} value={f.name}>{f.label}</SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <Select value={cond.operator} onValueChange={(val) => updateCondition(field.originalIndex, condIdx, { operator: val })}>
+                                                                            <SelectTrigger className="h-7 w-24 text-xs">
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="equals">Equals</SelectItem>
+                                                                                <SelectItem value="not_equals">Does not equal</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                        <Input
+                                                                            className="h-7 w-32 text-xs"
+                                                                            placeholder="Value"
+                                                                            value={cond.value}
+                                                                            onChange={(e) => updateCondition(field.originalIndex, condIdx, { value: e.target.value })}
+                                                                        />
+                                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCondition(field.originalIndex, condIdx)}>
+                                                                            <X className="h-3 w-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
+
                                             </div>
 
                                             {!['name', 'email'].includes(field.name) && (

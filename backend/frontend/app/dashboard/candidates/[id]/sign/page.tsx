@@ -454,10 +454,36 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
   if (isLoading || !candidate) return <div className="p-10 text-center">{t("common.loading")}</div>
   if (error) return <div className="p-10 text-center text-red-500">{t("candidates.sign.loading_pdf")}</div>
 
+  // 5. Rejected Overlay
+  if (candidate?.contract_status === 'rejected') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-muted/30 p-6 text-center">
+        <div className="bg-card p-8 rounded-xl shadow-lg max-w-md border border-red-200 dark:border-red-900/50">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X className="w-8 h-8 text-red-600 dark:text-red-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Contract Rejected</h2>
+          <p className="text-muted-foreground mb-6">
+            This contract has been rejected and cannot be signed or viewed.
+          </p>
+          {candidate.data?.rejection_reason && (
+            <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-3 mb-6 text-left text-sm text-red-800 dark:text-red-300 border border-red-100 dark:border-red-900/20">
+              <span className="font-semibold block mb-1">Reason:</span>
+              {candidate.data.rejection_reason}
+            </div>
+          )}
+          <Button onClick={() => router.push('/dashboard/candidates')} variant="outline" className="w-full">
+            Back to Candidates
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   const isGlobalSigned = !!(candidate?.contract_status?.toLowerCase() === 'signed');
   const activeContract = contracts.find(c => c.id === activeContractId);
-  // If we have multi-contract support, rely on the specific contract status
-  const isContractSigned = activeContract ? activeContract.status === 'signed' : isGlobalSigned;
+  // If global is signed, treat everything as signed (legacy support + strictly read-only)
+  const isContractSigned = isGlobalSigned || (activeContract ? activeContract.status === 'signed' : false);
 
   return (
     <div className="h-full flex flex-col bg-muted/10">
