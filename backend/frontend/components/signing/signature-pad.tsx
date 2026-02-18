@@ -30,7 +30,19 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
             alert("Please draw your signature first")
             return
         }
-        const dataUrl = canvasRef.current?.toDataURL()
+        // Composite onto white background so TCPDF can embed it correctly
+        const sigCanvas = canvasRef.current?.getCanvas()
+        if (!sigCanvas) return
+
+        const offscreen = document.createElement("canvas")
+        offscreen.width = sigCanvas.width
+        offscreen.height = sigCanvas.height
+        const ctx = offscreen.getContext("2d")!
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, offscreen.width, offscreen.height)
+        ctx.drawImage(sigCanvas, 0, 0)
+
+        const dataUrl = offscreen.toDataURL("image/png")
         if (dataUrl) {
             onSignatureCreate("drawn", dataUrl)
         }

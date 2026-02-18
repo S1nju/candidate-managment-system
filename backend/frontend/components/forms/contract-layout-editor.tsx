@@ -182,6 +182,19 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                             <Plus className="h-3 w-3" />
                         </div>
                         <div
+                            className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 cursor-pointer"
+                            onClick={() => {
+                                const uniqueId = Date.now().toString(36);
+                                addInstance({ placeholder: `admin_signature_${uniqueId}`, source: 'system', field_name: 'admin_signature', field_type: 'image' })
+                            }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <PenTool className="h-4 w-4 text-emerald-500" />
+                                <span className="text-sm font-medium">Admin Signature</span>
+                            </div>
+                            <Plus className="h-3 w-3" />
+                        </div>
+                        <div
                             className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-blue-200 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer"
                             onClick={() => addInstance({ placeholder: 'date', source: 'system', field_name: 'date', field_type: 'date' })}
                         >

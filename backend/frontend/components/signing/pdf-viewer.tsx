@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react"
@@ -15,10 +15,11 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@$
 interface PDFViewerProps {
     fileUrl: string
     onPageChange?: (page: number) => void
+    onNumPagesChange?: (numPages: number) => void
     children?: React.ReactNode // For overlays like signatures
 }
 
-export function PDFViewer({ fileUrl, onPageChange, children }: PDFViewerProps) {
+export function PDFViewer({ fileUrl, onPageChange, onNumPagesChange, children }: PDFViewerProps) {
     const [numPages, setNumPages] = useState<number>(0)
     const [pageNumber, setPageNumber] = useState<number>(1)
     const [scale, setScale] = useState<number>(1.0)
@@ -34,6 +35,7 @@ export function PDFViewer({ fileUrl, onPageChange, children }: PDFViewerProps) {
         setNumPages(numPages)
         setPageNumber(1)
         onPageChange?.(1)
+        onNumPagesChange?.(numPages)
     }
 
     function onDocumentLoadError(error: Error) {
@@ -51,6 +53,13 @@ export function PDFViewer({ fileUrl, onPageChange, children }: PDFViewerProps) {
 
     const zoomIn = () => setScale((prev) => Math.min(prev + 0.2, 2.0))
     const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.5))
+
+    // Listen for external next-page trigger (e.g. from Read & Approve button)
+    useEffect(() => {
+        const handler = () => changePage(1)
+        window.addEventListener('pdf-next-page', handler)
+        return () => window.removeEventListener('pdf-next-page', handler)
+    }, [pageNumber, numPages])
 
     return (
         <div className="flex flex-col h-full">
@@ -107,7 +116,7 @@ export function PDFViewer({ fileUrl, onPageChange, children }: PDFViewerProps) {
                                 renderAnnotationLayer={true}
                             />
                             {/* Signature and other overlays go here */}
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                            <div className="absolute inset-0 overflow-hidden">
                                 {children}
                             </div>
                         </div>

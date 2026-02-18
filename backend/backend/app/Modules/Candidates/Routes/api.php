@@ -24,5 +24,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/{candidate}/ping', [ContractController::class, 'ping']);
     Route::post('/candidates/{candidate}/sign-contract', [ContractController::class, 'sign'])->middleware('throttle:60,1');
     Route::post('/candidates/{candidate}/reject-contract', [ContractController::class, 'reject'])->middleware('throttle:60,1');
+    Route::post('/candidates/{candidate}/send-signature-request', [ContractController::class, 'sendSignatureRequest']);
     Route::get('/contracts/{id}', [ContractController::class, 'download'])->where('id', '.*');
+});
+
+// Public Candidate Routes
+Route::prefix('public/candidate')->group(function () {
+    Route::get('/{token}', [\App\Modules\Candidates\Http\Controllers\PublicCandidateController::class, 'show']);
+    Route::get('/{token}/preview', [\App\Modules\Candidates\Http\Controllers\PublicCandidateController::class, 'preview']);
+    Route::post('/{token}/sign', [\App\Modules\Candidates\Http\Controllers\PublicCandidateController::class, 'sign']);
 });

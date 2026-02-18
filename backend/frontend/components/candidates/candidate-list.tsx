@@ -130,12 +130,16 @@ export function CandidateList() {
   const getStatusColor = (status: string) => {
     if (status === "signed") return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
     if (status === "rejected") return "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/40"
+    if (status === "pending_candidate_signature") return "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+    if (status === "pending_admin_signature") return "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/40"
     return "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800 hover:bg-yellow-100 dark:hover:bg-yellow-900/40"
   }
 
   const getStatusLabel = (status: string) => {
     if (status === "signed") return t("candidates.list.signed")
     if (status === "rejected") return t("candidates.list.rejected")
+    if (status === "pending_candidate_signature") return t("candidates.list.pending_candidate") || "Waiting for Candidate"
+    if (status === "pending_admin_signature") return t("candidates.list.pending_admin") || "Waiting for Admin"
     return t("candidates.list.pending")
   }
 
@@ -187,6 +191,8 @@ export function CandidateList() {
             <SelectContent className="bg-card">
               <SelectItem value="all">{t("candidates.list.all_statuses")}</SelectItem>
               <SelectItem value="pending">{t("candidates.list.pending")}</SelectItem>
+              <SelectItem value="pending_candidate_signature">{t("candidates.list.pending_candidate") || "Waiting for Candidate"}</SelectItem>
+              <SelectItem value="pending_admin_signature">{t("candidates.list.pending_admin") || "Waiting for Admin"}</SelectItem>
               <SelectItem value="signed">{t("candidates.list.signed")}</SelectItem>
               <SelectItem value="rejected">{t("candidates.list.rejected")}</SelectItem>
             </SelectContent>

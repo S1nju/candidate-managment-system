@@ -267,20 +267,13 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     const downloadUrl = `${axios.defaults.baseURL}/api/candidates/${id}/preview-contract?contract_id=${activeContractId}`
     setContractFile(downloadUrl)
 
-    // Reset signatures when switching contracts
-    // Auto-place signatures based on placeholders
+    // Auto-place signatures based on placeholders — admin only sees admin_signature boxes
     const sigPlaceholders = (current.placeholders || []).filter((p: any) => {
       if (!p.position) return false;
       if (p.source === 'static_signature') return false;
 
-      // Check explicit fields
-      if (p.field_name && (p.field_name.toLowerCase() === 'signature' || p.field_name.toLowerCase() === 'initials')) return true;
-
-      // Check placeholder name
-      if (p.placeholder && (p.placeholder.toLowerCase().includes('signature') || p.placeholder.toLowerCase().includes('initials'))) return true;
-
-      // Fallback: System images are likely signatures if not static
-      if (p.source === 'system' && p.field_type === 'image') return true;
+      // Only show admin_signature placeholders on the admin signing page
+      if (p.field_name === 'admin_signature') return true;
 
       return false;
     })
@@ -605,17 +598,6 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           )}
         </div>
 
-        {/* DEBUG BLOCK - REMOVE LATER */}
-        <div className="bg-slate-900 text-white p-4 text-xs font-mono absolute bottom-0 right-0 z-[100] max-h-48 overflow-auto opacity-75 hover:opacity-100">
-          <h3 className="font-bold border-b pb-1 mb-1">Debug Info</h3>
-          <div>Signatures Count: {signatures.length}</div>
-          <div>Active Contract: {activeContractId} ({contracts.find(c => c.id === activeContractId)?.name})</div>
-          <div>Total Contracts: {contracts.length}</div>
-          <pre className="mt-2">{JSON.stringify(signatures, null, 2)}</pre>
-          <pre className="mt-2 text-blue-300">
-            {JSON.stringify(contracts.find(c => c.id === activeContractId)?.placeholders, null, 2)}
-          </pre>
-        </div>
 
         {!isContractSigned && (
           <div className="hidden lg:block col-span-1 border-l bg-background p-4 shadow-xl z-20">

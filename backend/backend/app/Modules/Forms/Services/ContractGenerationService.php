@@ -113,7 +113,7 @@ class ContractGenerationService
                     $renderWidth = $w > 0 ? $w : 50;
 
                     $isImage = false;
-                    if ($isImageField || (is_string($value) && (str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
+                    if ($isImageField || (is_string($value) && (str_starts_with($value, 'data:image') || str_ends_with(strtolower($value), '.png') || str_ends_with(strtolower($value), '.jpg') || str_ends_with(strtolower($value), '.jpeg')))) {
                         $isImage = true;
                     }
 
@@ -121,6 +121,33 @@ class ContractGenerationService
                         if (! empty($value)) {
                             $foundPath = null;
                             $tempFiles = [];
+
+                            // Valid Base64 check
+                            if (is_string($value) && str_starts_with($value, 'data:image')) {
+                                if (preg_match('/^data:image\/(\w+);base64,/', $value, $type)) {
+                                    $data = substr($value, strpos($value, ',') + 1);
+                                    $data = base64_decode($data);
+                                    if ($data !== false) {
+                                        $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_base64');
+                                        file_put_contents($tempFile, $data);
+                                        $foundPath = $tempFile;
+                                        $tempFiles[] = $tempFile;
+                                        goto embed_image;
+                                    }
+                                }
+                            }
+
+                            // ROBUST: Try to map /storage/ to real storage path (avoids symlink/URL issues)
+                            if (is_string($value) && str_contains($value, '/storage/')) {
+                                $parts = explode('/storage/', $value, 2);
+                                if (isset($parts[1])) {
+                                    $candidatePath = storage_path('app/public/' . ltrim($parts[1], '/'));
+                                    if (file_exists($candidatePath)) {
+                                        $foundPath = $candidatePath;
+                                        goto embed_image;
+                                    }
+                                }
+                            }
 
                             if (is_string($value) && str_starts_with($value, 'http')) {
                                 // Optimization: If it's a local storage URL, try to resolve to path directly

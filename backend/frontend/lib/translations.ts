@@ -146,6 +146,8 @@ export const translations = {
                 filter_status: "Filter by status",
                 all_statuses: "All Statuses",
                 pending: "Pending",
+                pending_candidate: "Waiting for Candidate",
+                pending_admin: "Waiting for Admin",
                 signed: "Signed",
                 rejected: "Rejected",
                 table: {
@@ -347,6 +349,8 @@ export const translations = {
                 filter_status: "Filtrer par statut",
                 all_statuses: "Tous les statuts",
                 pending: "En attente",
+                pending_candidate: "En attente du candidat",
+                pending_admin: "En attente de l'admin",
                 signed: "Signé",
                 rejected: "Rejeté",
                 table: {

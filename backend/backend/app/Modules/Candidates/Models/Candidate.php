@@ -41,6 +41,9 @@ class Candidate extends Model
         'signing_started_at',
         'signing_session_id',
         'last_ping_at',
+        'signing_token',
+        'sent_for_signature_at',
+        'signed_by_candidate_at',
     ];
 
     protected $casts = [
@@ -52,6 +55,8 @@ class Candidate extends Model
         'contract_signed_at' => 'datetime',
         'signing_started_at' => 'datetime',
         'last_ping_at' => 'datetime',
+        'sent_for_signature_at' => 'datetime',
+        'signed_by_candidate_at' => 'datetime',
     ];
 
     public function signature()

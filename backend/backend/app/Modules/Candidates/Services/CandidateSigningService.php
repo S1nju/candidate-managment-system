@@ -17,11 +17,12 @@ class CandidateSigningService
         protected \App\Modules\Forms\Services\ContractGenerationService $contractGenService
     ) {}
 
-    public function signContract(Candidate $candidate, User $user, array $data): bool
+    public function signContract(Candidate $candidate, ?User $user, array $data): bool
     {
         return DB::transaction(function () use ($candidate, $user, $data) {
             $overlays = $data['signatures'] ?? [];
             $formContractId = $data['form_contract_id'] ?? null;
+            $isCandidateSigning = is_null($user);
 
             // STEP 1: Pessimistic Lock - Lock the row for update
             $lockedCandidate = Candidate::where('id', $candidate->id)
@@ -33,11 +34,27 @@ class CandidateSigningService
             }
 
             // STEP 2: Check and acquire soft lock (Scope lock to candidate for simplicity, even if signing one contract)
-            $this->acquireSoftLock($lockedCandidate, $user, $data['session_id'] ?? null);
+            // If candidate is signing, we don't use user-based soft lock in the same way, or we use a separate mechanism?
+            // For now, if it's candidate, we pass null user to acquireSoftLock or handle it?
+            // acquireSoftLock expects User. Let's adjust it or skip it for candidate?
+            // Candidate signing is usually single-threaded by the user themselves.
+            // But to prevent admin from signing while candidate is signing, we should lock.
+            // We can treat candidate as a special "user" or just check lock.
+
+            if ($user) {
+                $this->acquireSoftLock($lockedCandidate, $user, $data['session_id'] ?? null);
+            } else {
+                // Check if locked by ADMIN
+                if ($lockedCandidate->signing_in_progress_by) {
+                    throw new \RuntimeException('Contract is currently being edited by an admin.');
+                }
+                // We don't necessarily set 'signing_in_progress_by' for candidate,
+                // or we could use a flag. For simplicity, we skip soft lock for candidate if no admin is there.
+            }
 
             // STEP 3: Identify the specific contract to sign
             $lockedCandidate->load('form.contracts');
-            
+
             if ($formContractId) {
                 $contractDef = $lockedCandidate->form->contracts->where('id', $formContractId)->first();
             } else {
@@ -50,34 +67,70 @@ class CandidateSigningService
             }
 
             // Check if THIS contract is already signed
-            $existingSigned = GeneratedContract::where('candidate_id', $lockedCandidate->id)
-                ->where('form_contract_id', $contractDef->id)
-                ->where('status', 'signed')
-                ->first();
+            // Logic change: A contract might need TWO signatures (Candidate AND Admin).
+            // But `GeneratedContract` status 'signed' implies it's done?
+            // If we want double signature on the SAME PDF, we need to append signatures.
+            // Current system: `GeneratedContract` -> `status` 'signed'.
+            // If candidate signs, is it "signed"? or "candidate_signed"?
+            // Complexity: If we use the SAME `GeneratedContract` record for both, we need distinct statuses or flags.
+            // Assumption: The PDF is generated, Candidate signs it -> `GeneratedContract` status 'signed_by_candidate'?
+            // OR we just append signature and keep status 'pending' until FINAL signature?
 
-            if ($existingSigned) {
-                throw new \RuntimeException("This contract is already signed.");
-            }
+            // SIMPLIFICATION:
+            // 1. Candidate signs -> PDF updated with signature. Status remains 'pending' OR 'candidate_signed'.
+            // 2. Admin signs -> PDF updated with signature. Status becomes 'signed'.
 
-            // STEP 4: Get or Generate the PDF to be signed
-            $latest = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+            // Let's check `GeneratedContract` schema. It has `status` enum ('pending', 'signed', 'rejected').
+            // We might need 'partial' or just rely on metadata.
+
+            // To support this without massive schema changes:
+            // If `isCandidateSigning`:
+            //    - Embed signature.
+            //    - Update `status` to 'signed' IF no admin signature is required?
+            //    - Wait, requirement says "then the sign contract apears" for admin. So Admin MUST sign too.
+            //    - So `GeneratedContract` is NOT fully signed yet.
+            //    - We need to know if it's "Candidate Signed" to show it to Admin.
+
+            // Let's use `signature_metadata`.
+
+            $existingGenerated = GeneratedContract::where('candidate_id', $lockedCandidate->id)
                 ->where('form_contract_id', $contractDef->id)
                 ->latest('generated_at')
                 ->first();
 
-            if ($latest && file_exists(storage_path('app/secure/'.$latest->file_path))) {
-                $sourcePath = storage_path('app/secure/'.$latest->file_path);
+            $alreadyCandidateSigned = $existingGenerated && ($existingGenerated->signature_metadata['candidate_signed'] ?? false);
+
+            if ($isCandidateSigning && $alreadyCandidateSigned) {
+                throw new \RuntimeException('You have already signed this contract.');
+            }
+
+            // If Admin signing, we check if it is already fully signed
+            if (! $isCandidateSigning && $existingGenerated && $existingGenerated->status === 'signed') {
+                throw new \RuntimeException('This contract is already fully signed.');
+            }
+
+            // STEP 4: Get or Generate the PDF to be signed
+            if ($existingGenerated && file_exists(storage_path('app/secure/'.$existingGenerated->file_path))) {
+                // If we have a 'signed_path' (e.g. candidate signed first), we should use THAT as source for the next signature?
+                // Yes, if candidate signed, `signed_path` has their signature. Admin should sign THAT.
+                if ($existingGenerated->signed_path && file_exists(storage_path('app/secure/'.$existingGenerated->signed_path))) {
+                    $sourcePath = storage_path('app/secure/'.$existingGenerated->signed_path);
+                } else {
+                    $sourcePath = storage_path('app/secure/'.$existingGenerated->file_path);
+                }
             } else {
                 // Generate now
                 $this->contractGenService->generateContract($lockedCandidate, $contractDef);
-                
-                $latest = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+
+                $existingGenerated = GeneratedContract::where('candidate_id', $lockedCandidate->id)
                     ->where('form_contract_id', $contractDef->id)
                     ->latest('generated_at')
                     ->first();
-                
-                if (!$latest) throw new \Exception('Failed to generate contract.');
-                $sourcePath = storage_path('app/secure/'.$latest->file_path);
+
+                if (! $existingGenerated) {
+                    throw new \Exception('Failed to generate contract.');
+                }
+                $sourcePath = storage_path('app/secure/'.$existingGenerated->file_path);
             }
 
             // Generate a new filename for the signed version
@@ -93,49 +146,93 @@ class CandidateSigningService
             $this->embedSignatures($sourcePath, $signedPath, $overlays);
 
             // STEP 5: Update GeneratedContract Record
-            $latest->update([
-                'status' => 'signed',
-                'signed_at' => now(),
-                'signed_path' => $signedPathRel,
-                'signature_metadata' => [
-                    'ip_address' => $data['ip_address'] ?? null,
-                    'user_agent' => $data['user_agent'] ?? null,
-                    'signed_by' => $user->id,
-                ]
-            ]);
+            $metadata = $existingGenerated->signature_metadata ?? [];
+            if ($isCandidateSigning) {
+                $metadata['candidate_signed'] = true;
+                $metadata['candidate_signed_at'] = now()->toIso8601String();
+            } else {
+                $metadata['admin_signed'] = true;
+                $metadata['admin_signed_by'] = $user->id;
+                $metadata['admin_signed_at'] = now()->toIso8601String();
+            }
+            $metadata['ip_address'] = $data['ip_address'] ?? null;
+            $metadata['user_agent'] = $data['user_agent'] ?? null;
 
-            // STEP 6: Check if ALL contracts are signed
-            // Logic: Do we have any form contract that does NOT have a signed generated contract?
+            $updateData = [
+                'signed_path' => $signedPathRel, // Always update to latest signed version
+                'signature_metadata' => $metadata,
+            ];
+
+            // Determine if fully completed for this specific contract
+            // For now, let's assume if Admin signs, it's done.
+            // If Candidate signs, it's NOT done (status remains pending or we need a new status).
+            // Keeping 'pending' but with 'candidate_signed' metadata allows Admin to see it.
+
+            if (! $isCandidateSigning) {
+                // Admin signed -> Fully signed
+                $updateData['status'] = 'signed';
+                $updateData['signed_at'] = now();
+                $updateData['signed_by_user_id'] = $user ? $user->id : null;
+            }
+
+            $existingGenerated->update($updateData);
+
+            // STEP 6: Update Candidate Status
+            // Check if ALL contracts are signed by CANDIDATE
             $allContractIds = $lockedCandidate->form->contracts->pluck('id');
-            $signedContractIds = GeneratedContract::where('candidate_id', $lockedCandidate->id)
-                ->where('status', 'signed')
-                ->pluck('form_contract_id');
-            
-            $allSigned = $allContractIds->diff($signedContractIds)->isEmpty();
 
-            if ($allSigned) {
+            // Get all generated contracts for these IDs
+            $allGenerated = GeneratedContract::where('candidate_id', $lockedCandidate->id)
+                ->whereIn('form_contract_id', $allContractIds)
+                ->get()
+                ->keyBy('form_contract_id');
+
+            $allCandidateSigned = true;
+            $allFullySigned = true;
+
+            foreach ($allContractIds as $cId) {
+                $gen = $allGenerated[$cId] ?? null;
+                if (! $gen) {
+                    $allCandidateSigned = false;
+                    $allFullySigned = false;
+                    break;
+                }
+                $meta = $gen->signature_metadata ?? [];
+                if (! ($meta['candidate_signed'] ?? false)) {
+                    $allCandidateSigned = false;
+                }
+                if ($gen->status !== 'signed') { // 'signed' means Admin signed
+                    $allFullySigned = false;
+                }
+            }
+
+            if ($allFullySigned) {
                 $lockedCandidate->update([
                     'contract_status' => 'signed',
-                    'contract_path' => $signedPathRel, // Point to the last signed one or a zip? accessing first is fine for legacy.
+                    'contract_path' => $signedPathRel,
                     'contract_signed_at' => now(),
-                    'signed_by_user_id' => $user->id,
-                    // Clear soft lock
+                    'signed_by_user_id' => $user ? $user->id : null,
                     'signing_in_progress_by' => null,
                     'signing_started_at' => null,
                     'signing_session_id' => null,
                 ]);
-            } else {
-                // Just release lock? Or keep "signing_in_progress"? 
-                // Maybe release lock to let others sign other contracts? 
-                // For now, let's keep it locked or release it?
-                // Release soft lock because this specific action is done.
-                 $this->releaseSoftLock($lockedCandidate, $data['session_id'] ?? null);
+            } elseif ($allCandidateSigned && $isCandidateSigning) {
+                // All signed by candidate, ready for admin
+                $lockedCandidate->update([
+                    'contract_status' => 'pending_admin_signature',
+                    'signed_by_candidate_at' => now(),
+                ]);
+            }
+
+            if ($user) {
+                $this->releaseSoftLock($lockedCandidate, $data['session_id'] ?? null);
             }
 
             $this->auditService->log('contract_signed', $lockedCandidate, [
                 'filename' => $filename,
                 'signed_path' => $signedPathRel,
-                'contract_name' => $contractDef->name
+                'contract_name' => $contractDef->name,
+                'signed_by' => $isCandidateSigning ? 'candidate' : 'admin',
             ]);
 
             return true;
@@ -161,7 +258,7 @@ class CandidateSigningService
             Log::info("EmbedSignatures: Page $pageNo Size - W: {$size['width']} H: {$size['height']}");
 
             foreach ($overlays as $overlay) {
-                if (isset($overlay['placement']['page']) && $overlay['placement']['page'] === $pageNo) {
+                if (isset($overlay['placement']['page']) && (int) $overlay['placement']['page'] === $pageNo) {
                     $x = ($overlay['placement']['x'] / 100) * $size['width'];
                     $y = ($overlay['placement']['y'] / 100) * $size['height'];
 
@@ -177,6 +274,7 @@ class CandidateSigningService
 
                                 if ($imageBinary === false) {
                                     Log::error('EmbedSignatures: Base64 decode failed for value mapping.');
+
                                     continue;
                                 }
 
@@ -227,7 +325,7 @@ class CandidateSigningService
                                     $h = 20;
                                     $finalX = max(0, $x - ($w / 2));
                                     $finalY = max(0, $y - ($h / 2));
-                                    
+
                                     $pdf->Image('@'.$imageContent, $finalX, $finalY, $w, 0, 'PNG');
                                     Log::info("EmbedSignatures: URL image embedded at X:$finalX Y:$finalY");
                                 } else {

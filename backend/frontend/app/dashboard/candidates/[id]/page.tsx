@@ -122,27 +122,58 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             >
               {isSigned ? <><ShieldCheck className="w-3 h-3 mr-1" /> {t("candidates.detail.contract_signed")}</> :
                 candidate.contract_status === 'rejected' ? t("candidates.detail.contract_rejected") :
-                  t("candidates.detail.pending_signature")}
+                  candidate.contract_status === 'pending_candidate_signature' ? "Waiting for Candidate" :
+                    candidate.contract_status === 'pending_admin_signature' ? "Ready for Admin Sign" :
+                      t("candidates.detail.pending_signature")}
             </Badge>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {(!isSigned && candidate.contract_status === 'pending') ? (
+          {/* ACTION BUTTONS BASED ON STATUS */}
+
+          {/* 1. SEND FOR SIGNATURE (Initial or Resend) */}
+          {(!isSigned && (candidate.contract_status === 'pending' || candidate.contract_status === 'pending_candidate_signature')) && (
+            <Button
+              variant={candidate.contract_status === 'pending' ? "default" : "outline"}
+              className={candidate.contract_status === 'pending' ? "bg-blue-600" : ""}
+              onClick={async () => {
+                try {
+                  toast({ title: "Sending...", description: "Sending signature request..." });
+                  await axios.post(`/api/candidates/${candidate.id}/send-signature-request`);
+                  toast({ title: "Success", description: "Signature request sent!" });
+                  mutate();
+                } catch (e: any) {
+                  toast({ title: "Error", description: e.response?.data?.message || "Failed to send request", variant: "destructive" });
+                }
+              }}
+            >
+              <Mail className="w-3.5 h-3.5 mr-2" />
+              {candidate.contract_status === 'pending' ? "Send for Signature" : "Resend Request"}
+            </Button>
+          )}
+
+          {/* 2. ADMIN SIGN (When candidate has signed) */}
+          {(!isSigned && candidate.contract_status === 'pending_admin_signature') && (
             <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
-              <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95 text-xs h-9">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95 text-xs h-9">
                 <PenToolIcon className="w-3.5 h-3.5 mr-2" />
-                {t("candidates.detail.sign_contract")}
-              </Button>
-            </Link>
-          ) : (
-            <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
-              <Button variant="outline" className="text-xs h-9 border-slate-200">
-                <Eye className="w-3.5 h-3.5 mr-2" />
-                {t("candidates.detail.view_contract")}
+                Sign Contract
               </Button>
             </Link>
           )}
+
+          {/* 3. VIEW CONTRACT (Only show after candidate signs or if fully signed) */}
+          {(isSigned || candidate.contract_status === 'pending_admin_signature') && (
+            <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
+              <Button variant="outline" className="text-xs h-9 border-slate-200">
+                <Eye className="w-3.5 h-3.5 mr-2" />
+                {isSigned ? t("candidates.detail.view_contract") : "View Contract"}
+              </Button>
+            </Link>
+          )}
+
+          {/* Email Button - General */}
 
           <Button variant="outline" className="text-xs h-9 border-slate-200" onClick={() => setIsEmailOpen(true)}>
             <Mail className="w-3.5 h-3.5 mr-2" />
