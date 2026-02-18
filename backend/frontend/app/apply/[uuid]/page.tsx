@@ -55,12 +55,26 @@ export default function PublicFormPage() {
         if (!field.conditions || field.conditions.length === 0) return true
 
         return field.conditions.every((cond: any) => {
+            if (!cond.field || !cond.operator) return true
+
             const fieldValue = formData[cond.field]
+
+            // Normalize values for reliable comparison
+            const val1 = String(fieldValue ?? "").trim()
+            const val2 = String(cond.value ?? "").trim()
+
+            // Debug log to help diagnose issues
+            console.log(`[Form Logic] Checking field '${field.label}': Dependency '${cond.field}' (Value: '${val1}') ${cond.operator} '${val2}'`)
+
             if (cond.operator === 'equals') {
-                return fieldValue == cond.value
+                return val1 === val2
             } else if (cond.operator === 'not_equals') {
-                return fieldValue != cond.value
+                return val1 !== val2
             }
+
+            // If unknown operator, we default to visible (true) to avoid hiding fields erroneously,
+            // but we log a warning.
+            console.warn(`[Form Logic] Unknown operator: ${cond.operator}`)
             return true
         })
     }
