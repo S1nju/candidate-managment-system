@@ -100,6 +100,7 @@ class FormController extends Controller
             'status' => 'in:draft,active,disabled',
             'kyc_enabled' => 'boolean',
             'role_id' => 'nullable|exists:roles,id',
+            'completion_attachment_path' => 'nullable|string',
             'fields' => 'sometimes|array',
             'fields.*.id' => 'nullable|exists:form_fields,id',
             'fields.*.type' => 'required|string',
@@ -153,5 +154,36 @@ class FormController extends Controller
         $form->delete();
 
         return response()->json(['message' => 'Form deleted successfully']);
+    }
+
+    /**
+     * Upload an attachment to be sent on contract completion.
+     */
+    public function uploadCompletionAttachment(Request $request, string $id)
+    {
+        $form = Form::findOrFail($id);
+
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,doc,docx,jpg,png|max:10240', // 10MB max
+        ]);
+
+        if ($request->hasFile('file')) {
+            // Delete old one if exists
+            if ($form->completion_attachment_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($form->completion_attachment_path);
+            }
+
+            $path = $request->file('file')->store('form-attachments', 'public');
+            
+            $form->update(['completion_attachment_path' => $path]);
+
+            return response()->json([
+                'message' => 'Attachment uploaded successfully',
+                'path' => $path,
+                'form' => $form->fresh('fields')
+            ]);
+        }
+
+        return response()->json(['message' => 'No file provided'], 400);
     }
 }

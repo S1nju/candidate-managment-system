@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 // Admin routes - protected by auth
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('forms', FormController::class);
+    Route::post('forms/{form}/completion-attachment', [FormController::class, 'uploadCompletionAttachment']);
     Route::get('forms/{formId}/contracts/{id}/template', [FormContractController::class, 'downloadTemplate']);
     Route::get('generated-contracts/{id}/download', [FormContractController::class, 'downloadGenerated']);
     Route::apiResource('forms.contracts', FormContractController::class);

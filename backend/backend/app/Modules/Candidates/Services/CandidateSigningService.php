@@ -216,6 +216,26 @@ class CandidateSigningService
                     'signing_started_at' => null,
                     'signing_session_id' => null,
                 ]);
+
+                // Collect all final signed paths
+                $contractPaths = [];
+                foreach ($allGenerated as $id => $gen) {
+                    if ($id == $contractDef->id) {
+                        $contractPaths[] = $signedPathRel;
+                    } elseif ($gen->signed_path) {
+                        $contractPaths[] = $gen->signed_path;
+                    }
+                }
+
+                // Trigger completion email
+                if ($lockedCandidate->email) {
+                    \Illuminate\Support\Facades\Mail::to($lockedCandidate->email)
+                        ->send(new \App\Mail\ContractCompletedNotification(
+                            $lockedCandidate,
+                            $contractPaths,
+                            $lockedCandidate->form->completion_attachment_path ?? null
+                        ));
+                }
             } elseif ($allCandidateSigned && $isCandidateSigning) {
                 // All signed by candidate, ready for admin
                 $lockedCandidate->update([
@@ -422,7 +442,7 @@ class CandidateSigningService
                 'candidate_id' => $candidate->id,
                 'target_session' => $sessionId,
                 'current_session' => $candidate->signing_session_id,
-                'user_id' => auth()->id(),
+                'user_id' => \Illuminate\Support\Facades\Auth::id(),
             ]);
 
             return;

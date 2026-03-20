@@ -29,6 +29,7 @@ class Form extends Model
         'title',
         'description',
         'status',
+        'completion_attachment_path',
         'kyc_enabled',
         'created_by',
         'role_id',
@@ -38,8 +39,16 @@ class Form extends Model
         'kyc_enabled' => 'boolean',
     ];
 
-    // ... boot ...
+    protected static function boot()
+    {
+        parent::boot();
 
+        static::creating(function ($model) {
+            if (empty($model->uuid)) {
+                $model->uuid = (string) Str::uuid();
+            }
+        });
+    }
     public function fields(): HasMany
     {
         return $this->hasMany(FormField::class)->orderBy('order');
