@@ -21,9 +21,14 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required'],
         ]);
+
+        $credentials['email'] = strtolower(trim($credentials['email']));
+        $credentials['password'] = (string) $credentials['password'];
  
         if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
+            if ($request->hasSession()) {
+                $request->session()->regenerate();
+            }
  
             return response()->json(['message' => 'Authenticated', 'user' => Auth::user()->load('roles')]);
         }
@@ -61,12 +66,13 @@ class AuthController extends Controller
      * Log the user out of the application.
      */
     public function logout(Request $request)
-    {
+    {   
         Auth::guard('web')->logout();
- 
-        $request->session()->invalidate();
- 
-        $request->session()->regenerateToken();
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
       
         return response()->json(['message' => 'Logged out']);
     }

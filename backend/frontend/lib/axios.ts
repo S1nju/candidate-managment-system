@@ -15,6 +15,7 @@ if (baseURL.endsWith('/')) {
 const axiosClient = axios.create({
   baseURL,
   headers: {
+    "Accept": "application/json",
     "X-Requested-With": "XMLHttpRequest",
   },
   withCredentials: true,

@@ -20,7 +20,8 @@ class ContractCompletedNotification extends Mailable
     public function __construct(
         public \App\Modules\Candidates\Models\Candidate $candidate,
         public array $signedContractPaths,
-        public ?string $completionAttachmentPath = null
+        public ?string $completionAttachmentPath = null,
+        public array $dynamicFormAttachments = []
     ) {}
 
     /**
@@ -42,7 +43,7 @@ class ContractCompletedNotification extends Mailable
             view: 'emails.candidate.contract-completed',
             with: [
                 'candidateName' => $this->candidate->name,
-                'hasExtraAttachment' => !empty($this->completionAttachmentPath),
+                'hasExtraAttachment' => ! empty($this->completionAttachmentPath) || ! empty($this->dynamicFormAttachments),
             ],
         );
     }
@@ -57,14 +58,25 @@ class ContractCompletedNotification extends Mailable
         $attachments = [];
 
         foreach ($this->signedContractPaths as $path) {
-            if ($path && Storage::disk('public')->exists($path)) {
-                $attachments[] = Attachment::fromStorageDisk('public', $path);
+            if ($path && Storage::disk('secure')->exists($path)) {
+                $attachments[] = Attachment::fromStorageDisk('secure', $path)
+                    ->as('Signed_' . basename($path));
             }
         }
 
         if ($this->completionAttachmentPath && Storage::disk('public')->exists($this->completionAttachmentPath)) {
             $attachments[] = Attachment::fromStorageDisk('public', $this->completionAttachmentPath)
                 ->as('Completion_Attachment.' . pathinfo($this->completionAttachmentPath, PATHINFO_EXTENSION));
+        }
+
+        foreach ($this->dynamicFormAttachments as $item) {
+            $path = $item['path'] ?? null;
+            if (! is_string($path) || $path === '' || ! Storage::disk('secure')->exists($path)) {
+                continue;
+            }
+
+            $name = $item['name'] ?? basename($path);
+            $attachments[] = Attachment::fromStorageDisk('secure', $path)->as($name);
         }
 
         return $attachments;

@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormBuilder, FormField } from "@/components/forms/form-builder"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout, Upload, Paperclip } from "lucide-react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormContractManager } from "@/components/forms/form-contract-manager"
@@ -28,6 +28,8 @@ export default function EditFormPage() {
     const [description, setDescription] = useState("")
     const [status, setStatus] = useState("draft")
     const [kycEnabled, setKycEnabled] = useState(false)
+    const [completionAttachmentPath, setCompletionAttachmentPath] = useState<string | null>(null)
+    const [uploadingCompletionAttachment, setUploadingCompletionAttachment] = useState(false)
     const [fields, setFields] = useState<FormField[]>([])
 
     const { data: roles } = useSWR('/api/admin/roles', url => axios.get(url).then(res => res.data).catch(() => []))
@@ -42,6 +44,7 @@ export default function EditFormPage() {
                 setDescription(form.description || "")
                 setStatus(form.status)
                 setKycEnabled(form.kyc_enabled)
+                setCompletionAttachmentPath(form.completion_attachment_path || null)
                 setFields(form.fields || [])
                 setRoleId(form.role_id ? String(form.role_id) : "")
             } catch (error) {
@@ -83,6 +86,38 @@ export default function EditFormPage() {
             setSaving(false)
         }
     }
+
+    const handleCompletionAttachmentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const payload = new FormData()
+        payload.append("file", file)
+
+        setUploadingCompletionAttachment(true)
+        try {
+            const res = await axios.post(`/api/forms/${id}/completion-attachment`, payload, {
+                headers: { "Content-Type": "multipart/form-data" },
+            })
+
+            const path = res.data?.path || res.data?.form?.completion_attachment_path || null
+            setCompletionAttachmentPath(path)
+            toast({ title: "Completion attachment uploaded" })
+        } catch (error: any) {
+            toast({
+                title: "Failed to upload attachment",
+                description: error.response?.data?.message || "Something went wrong",
+                variant: "destructive",
+            })
+        } finally {
+            setUploadingCompletionAttachment(false)
+            event.target.value = ""
+        }
+    }
+
+    const completionAttachmentUrl = completionAttachmentPath
+        ? `${axios.defaults.baseURL}/storage/${completionAttachmentPath}`
+        : null
 
     const handleDelete = async () => {
         if (!confirm("Are you sure you want to delete this form?")) return
@@ -208,6 +243,41 @@ export default function EditFormPage() {
                 </TabsContent>
 
                 <TabsContent value="contracts" className="bg-card p-8 rounded-lg shadow-sm border">
+                    <div className="space-y-4 mb-8 border rounded-lg p-4 bg-muted/20">
+                        <div className="space-y-1">
+                            <h3 className="text-base font-semibold flex items-center gap-2">
+                                <Paperclip className="h-4 w-4" />
+                                Completion Attachment
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                                This file is sent only after contracts are fully signed.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <Input
+                                id="completion-attachment"
+                                type="file"
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                onChange={handleCompletionAttachmentUpload}
+                                disabled={uploadingCompletionAttachment}
+                            />
+                            {uploadingCompletionAttachment && <Loader2 className="h-4 w-4 animate-spin" />}
+                        </div>
+
+                        {completionAttachmentUrl && completionAttachmentPath && (
+                            <a
+                                href={completionAttachmentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                            >
+                                <Upload className="h-4 w-4 rotate-180" />
+                                Current attachment: {completionAttachmentPath.split("/").pop()}
+                            </a>
+                        )}
+                    </div>
+
                     <FormContractManager formId={id as string} fields={fields} />
                 </TabsContent>
             </Tabs>

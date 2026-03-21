@@ -42,7 +42,7 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
         ctx.fillRect(0, 0, offscreen.width, offscreen.height)
         ctx.drawImage(sigCanvas, 0, 0)
 
-        const dataUrl = offscreen.toDataURL("image/png")
+        const dataUrl = offscreen.toDataURL("image/jpeg", 0.92)
         if (dataUrl) {
             onSignatureCreate("drawn", dataUrl)
         }

@@ -43,7 +43,7 @@ export default function FormsPage() {
             canvas.width = img.width
             canvas.height = img.height
             ctx?.drawImage(img, 0, 0)
-            const pngFile = canvas.toDataURL("image/png")
+            const pngFile = canvas.toDataURL("image/jpeg", 0.92)
             const downloadLink = document.createElement("a")
             downloadLink.download = `form-qr-${selectedForm?.title || "code"}.png`
             downloadLink.href = pngFile

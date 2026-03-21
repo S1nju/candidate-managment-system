@@ -33,7 +33,7 @@ function makeInitialsStamp(name: string): string {
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
     ctx.fillText(initials, 60, 22)
-    return canvas.toDataURL("image/png")
+    return canvas.toDataURL("image/jpeg", 0.92)
 }
 
 export default function PublicSignContractPage() {
@@ -203,6 +203,10 @@ export default function PublicSignContractPage() {
                 form_contract_id: activeContractId,
                 ip_address: "candidate",
                 user_agent: navigator.userAgent
+            }, {
+                headers: {
+                    "Accept": "application/json"
+                }
             })
 
             toast({ title: "Success", description: "Contract signed successfully!" })

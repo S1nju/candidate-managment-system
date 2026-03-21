@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->trustProxies(at: '*');
+        $middleware->validateCsrfTokens(except: [
+            'api/public/candidate/*/sign',
+            'api/candidates/*/sign-contract',
+        ]);
         $middleware->api(append: [
             \App\Http\Middleware\ForcePasswordReset::class,
         ]);

@@ -217,23 +217,33 @@ class CandidateSigningService
                     'signing_session_id' => null,
                 ]);
 
-                // Collect all final signed paths
+                // Collect only final signed paths (never original generated files)
+                $latestPerContract = GeneratedContract::query()
+                    ->where('candidate_id', $lockedCandidate->id)
+                    ->whereIn('form_contract_id', $allContractIds)
+                    ->orderByDesc('id')
+                    ->get()
+                    ->unique('form_contract_id')
+                    ->keyBy('form_contract_id');
+
                 $contractPaths = [];
-                foreach ($allGenerated as $id => $gen) {
-                    if ($id == $contractDef->id) {
-                        $contractPaths[] = $signedPathRel;
-                    } elseif ($gen->signed_path) {
-                        $contractPaths[] = $gen->signed_path;
+                foreach ($allContractIds as $contractId) {
+                    $latest = $latestPerContract->get($contractId);
+                    if ($latest && is_string($latest->signed_path) && $latest->signed_path !== '') {
+                        $contractPaths[] = $latest->signed_path;
                     }
                 }
 
                 // Trigger completion email
                 if ($lockedCandidate->email) {
+                    $dynamicFormAttachments = $this->extractDynamicFormAttachments($lockedCandidate->data ?? []);
+
                     \Illuminate\Support\Facades\Mail::to($lockedCandidate->email)
                         ->send(new \App\Mail\ContractCompletedNotification(
                             $lockedCandidate,
                             $contractPaths,
-                            $lockedCandidate->form->completion_attachment_path ?? null
+                            $lockedCandidate->form->completion_attachment_path ?? null,
+                            $dynamicFormAttachments
                         ));
                 }
             } elseif ($allCandidateSigned && $isCandidateSigning) {
@@ -257,6 +267,37 @@ class CandidateSigningService
 
             return true;
         }, 5);
+    }
+
+    /**
+     * Extract candidate-uploaded dynamic form attachments from candidate data.
+     *
+     * @return array<int, array{path: string, name: string}>
+     */
+    protected function extractDynamicFormAttachments(array $candidateData): array
+    {
+        $attachments = [];
+
+        foreach ($candidateData as $value) {
+            if (! is_array($value)) {
+                continue;
+            }
+
+            $path = $value['path'] ?? null;
+            if (! is_string($path) || trim($path) === '') {
+                continue;
+            }
+
+            $normalizedPath = ltrim($path, '/');
+            $attachments[$normalizedPath] = [
+                'path' => $normalizedPath,
+                'name' => is_string($value['name'] ?? null) && trim($value['name']) !== ''
+                    ? $value['name']
+                    : basename($normalizedPath),
+            ];
+        }
+
+        return array_values($attachments);
     }
 
     protected function embedSignatures(string $sourcePath, string $destPath, array $overlays): void
@@ -292,6 +333,12 @@ class CandidateSigningService
                                 $imageData = explode('base64,', $val);
                                 $imageBinary = base64_decode($imageData[1]);
 
+                                $imageType = 'PNG';
+                                if (preg_match('/^data:image\/(jpeg|jpg|png);base64,/i', $val, $matches)) {
+                                    $detected = strtoupper($matches[1]);
+                                    $imageType = $detected === 'JPG' ? 'JPEG' : $detected;
+                                }
+
                                 if ($imageBinary === false) {
                                     Log::error('EmbedSignatures: Base64 decode failed for value mapping.');
 
@@ -304,7 +351,7 @@ class CandidateSigningService
                                 $finalX = max(0, $x - ($w / 2));
                                 $finalY = max(0, $y - ($h / 2));
 
-                                $pdf->Image('@'.$imageBinary, $finalX, $finalY, $w, 0, 'PNG');
+                                $pdf->Image('@'.$imageBinary, $finalX, $finalY, $w, 0, $imageType);
                                 Log::info("EmbedSignatures: Base64 image embedded at X:$finalX Y:$finalY");
                             } else {
                                 // Handle URL or path
@@ -341,12 +388,22 @@ class CandidateSigningService
                                 }
 
                                 if ($imageContent) {
+                                    $imageType = 'PNG';
+                                    $sizeInfo = @getimagesizefromstring($imageContent);
+                                    if (is_array($sizeInfo) && isset($sizeInfo[2])) {
+                                        if ($sizeInfo[2] === IMAGETYPE_JPEG) {
+                                            $imageType = 'JPEG';
+                                        } elseif ($sizeInfo[2] === IMAGETYPE_PNG) {
+                                            $imageType = 'PNG';
+                                        }
+                                    }
+
                                     $w = 40;
                                     $h = 20;
                                     $finalX = max(0, $x - ($w / 2));
                                     $finalY = max(0, $y - ($h / 2));
 
-                                    $pdf->Image('@'.$imageContent, $finalX, $finalY, $w, 0, 'PNG');
+                                    $pdf->Image('@'.$imageContent, $finalX, $finalY, $w, 0, $imageType);
                                     Log::info("EmbedSignatures: URL image embedded at X:$finalX Y:$finalY");
                                 } else {
                                     Log::warning('EmbedSignatures: Could not resolve signature image: '.substr($val, 0, 50));

@@ -148,7 +148,7 @@ class ContractController extends Controller
         // Check if it's an ID (numeric) or a path
         if (is_numeric($id)) {
             $generated = \App\Modules\Forms\Models\GeneratedContract::findOrFail($id);
-            $path = $generated->file_path;
+            $path = $generated->signed_path ?: $generated->file_path;
         } else {
             // Assume it's a relative path from secure disk
             $path = rawurldecode($id);

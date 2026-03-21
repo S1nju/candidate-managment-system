@@ -20,17 +20,15 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
 
     setErrors([])
 
-    axios
-      .post("/api/login", props)
-      .then(() => {
-        mutate()
-        router.push("/dashboard")
-      })
-      .catch((error) => {
-        if (error.response.status !== 422) throw error
+    try {
+      const response = await axios.post("/api/login", props)
+      await mutate(response.data.user, false)
+      router.replace("/dashboard")
+    } catch (error: any) {
+      if (error.response?.status !== 422) throw error
 
-        setErrors(error.response.data.errors)
-      })
+      setErrors(error.response.data.errors)
+    }
   }
 
   const register = async ({ setErrors, ...props }: any) => {
@@ -38,17 +36,15 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
 
     setErrors([])
 
-    axios
-      .post("/api/register", props)
-      .then(() => {
-        mutate()
-        router.push("/dashboard")
-      })
-      .catch((error) => {
-        if (error.response.status !== 422) throw error
+    try {
+      const response = await axios.post("/api/register", props)
+      await mutate(response.data.user, false)
+      router.replace("/dashboard")
+    } catch (error: any) {
+      if (error.response?.status !== 422) throw error
 
-        setErrors(error.response.data.errors)
-      })
+      setErrors(error.response.data.errors)
+    }
   }
 
   const logout = async () => {
@@ -57,7 +53,7 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
         Cookies.remove("XSRF-TOKEN")
         Cookies.remove("laravel_session")
 
-        mutate()
+        mutate(undefined, false)
         window.location.href = "/login"
       })
     }
@@ -69,8 +65,7 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
 
   useEffect(() => {
     if (middleware === "guest" && redirectIfAuthenticated && user) router.push(redirectIfAuthenticated)
-    // If auth is required and there is an error (unauthenticated), redirect to login directly
-    if (middleware === "auth" && error) router.push("/login")
+    if (middleware === "auth" && error && !user) router.push("/login")
   }, [user, error, middleware, redirectIfAuthenticated, router])
 
   return {

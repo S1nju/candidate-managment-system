@@ -318,7 +318,11 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         user_agent: navigator.userAgent
       }
 
-      await axios.post(`/api/candidates/${id}/sign-contract`, payload)
+      await axios.post(`/api/candidates/${id}/sign-contract`, payload, {
+        headers: {
+          "Accept": "application/json"
+        }
+      })
       toast({ title: "Success", description: "Contract signed successfully" })
       router.push(`/dashboard/candidates`)
     } catch (error: any) {
