@@ -1,5 +1,16 @@
 <?php
 
+$mailPassword = env('MAIL_PASSWORD');
+$mailPasswordB64 = env('MAIL_PASSWORD_B64');
+
+if ((is_null($mailPassword) || $mailPassword === '') && is_string($mailPasswordB64) && $mailPasswordB64 !== '') {
+    $decoded = base64_decode($mailPasswordB64, true);
+
+    if ($decoded !== false) {
+        $mailPassword = $decoded;
+    }
+}
+
 return [
 
     /*
@@ -44,7 +55,7 @@ return [
             'host' => env('MAIL_HOST', 'localhost'),
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
+            'password' => $mailPassword,
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
