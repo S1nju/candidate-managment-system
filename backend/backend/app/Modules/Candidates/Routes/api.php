@@ -10,6 +10,7 @@ Route::get('/candidates/didit-decision/{sessionId}', [IdentityVerificationContro
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/candidates', [CandidateController::class, 'index']);
+    Route::post('/candidates/email-contracts', [CandidateController::class, 'createEmailContractInvite']);
     Route::get('/candidates/{candidate}', [CandidateController::class, 'show'])->whereNumber('candidate');
     Route::put('/candidates/{candidate}', [CandidateController::class, 'update']);
     Route::post('/candidates/{candidate}/assign', [CandidateController::class, 'assign']);

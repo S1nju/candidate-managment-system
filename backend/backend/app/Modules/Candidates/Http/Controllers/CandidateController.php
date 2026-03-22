@@ -3,9 +3,13 @@
 namespace App\Modules\Candidates\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Mail\CandidateSignatureRequest;
 use App\Modules\Candidates\Models\Candidate;
+use App\Modules\Forms\Models\Form;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class CandidateController extends Controller
 {
@@ -41,6 +45,12 @@ class CandidateController extends Controller
         if ($formId = $request->query('form_id')) {
             if ($formId !== 'all') {
                 $query->where('form_id', $formId);
+            }
+        }
+
+        if ($source = $request->query('source')) {
+            if ($source === 'email_contract') {
+                $query->whereRaw("COALESCE(data->>'source', '') = ?", ['email_contract']);
             }
         }
 
@@ -84,6 +94,65 @@ class CandidateController extends Controller
     {
         $this->ensureUserHasAccess($request->user(), $candidate);
         return response()->json($candidate->load(['signature', 'form.contracts', 'assignedTo', 'generatedContracts']));
+    }
+
+    public function createEmailContractInvite(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'form_id' => ['required', 'integer', 'exists:forms,id'],
+        ]);
+
+        $user = $request->user();
+        $form = Form::findOrFail($validated['form_id']);
+
+        if (! $user->hasRole('admin')) {
+            $hasAccess = $user->roles()->where('id', $form->role_id)->exists();
+            if (! $hasAccess) {
+                abort(403, 'Unauthorized to send invites for this form.');
+            }
+        }
+
+        $email = strtolower(trim($validated['email']));
+        $token = Str::random(64);
+
+        $candidate = Candidate::where('email', $email)
+            ->where('form_id', $form->id)
+            ->whereRaw("COALESCE(data->>'source', '') = ?", ['email_contract'])
+            ->first();
+
+        if ($candidate) {
+            $candidate->update([
+                'name' => $validated['name'],
+                'signing_token' => $token,
+                'sent_for_signature_at' => now(),
+                'contract_status' => $candidate->contract_status === 'signed' ? 'signed' : 'pending_candidate_signature',
+            ]);
+        } else {
+            $candidate = Candidate::create([
+                'name' => $validated['name'],
+                'email' => $email,
+                'form_id' => $form->id,
+                'contract_status' => 'pending_candidate_signature',
+                'signing_token' => $token,
+                'sent_for_signature_at' => now(),
+                'data' => [
+                    'source' => 'email_contract',
+                    'submitted_via' => 'direct_email_invite',
+                ],
+            ]);
+        }
+
+        $frontendUrl = config('app.frontend_url', config('app.url'));
+        $url = rtrim($frontendUrl, '/').'/candidate/sign/'.$candidate->signing_token;
+
+        Mail::to($candidate->email)->send(new CandidateSignatureRequest($candidate, $url));
+
+        return response()->json([
+            'message' => 'Contract invite sent successfully.',
+            'candidate' => $candidate->load('form'),
+        ], 201);
     }
 
     public function update(Request $request, Candidate $candidate): JsonResponse

@@ -15,12 +15,21 @@ services:
             APP_KEY: ${APP_KEY}
             APP_DEBUG: ${APP_DEBUG:-true}
             APP_URL: ${APP_URL:-https://api.signmehere.cloud}
+            FRONTEND_URL: ${FRONTEND_URL:-https://signmehere.cloud}
             DB_CONNECTION: mysql
             DB_HOST: db
             DB_PORT: 3306
             DB_DATABASE: ${DB_DATABASE:-signme}
             DB_USERNAME: ${DB_USERNAME:-signme}
             DB_PASSWORD: ${DB_PASSWORD:-password}
+            MAIL_MAILER: ${MAIL_MAILER:-smtp}
+            MAIL_SCHEME: ${MAIL_SCHEME:-smtps}
+            MAIL_HOST: ${MAIL_HOST}
+            MAIL_PORT: ${MAIL_PORT:-465}
+            MAIL_USERNAME: ${MAIL_USERNAME}
+            MAIL_PASSWORD: ${MAIL_PASSWORD}
+            MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+            MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SignMeHere}
             CACHE_STORE: redis
             REDIS_HOST: redis
             SESSION_DRIVER: database

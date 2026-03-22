@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboardIcon, UserIcon, SettingsIcon, HomeIcon, FileTextIcon, ClipboardListIcon, ShieldIcon, FileCheckIcon } from "lucide-react"
+import { LayoutDashboardIcon, UserIcon, SettingsIcon, HomeIcon, FileTextIcon, ClipboardListIcon, ShieldIcon, FileCheckIcon, MailIcon } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -81,6 +81,16 @@ export function DashboardSidebar() {
                     <Link href="/dashboard/forms">
                       <ClipboardListIcon className="size-4" />
                       <span>Forms</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/email-contracts")}>
+                    <Link href="/dashboard/email-contracts">
+                      <MailIcon className="size-4" />
+                      <span>Email Contracts</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
