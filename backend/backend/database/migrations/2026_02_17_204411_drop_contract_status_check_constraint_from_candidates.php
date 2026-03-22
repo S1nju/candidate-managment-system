@@ -10,9 +10,32 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Drop the check constraint that was created when contract_status was an ENUM
-        // PostgreSQL creates a check constraint for ENUM-like columns
-        DB::statement('ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_contract_status_check');
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE candidates DROP CONSTRAINT IF EXISTS candidates_contract_status_check');
+
+            return;
+        }
+
+        if ($driver === 'mysql') {
+            $database = DB::getDatabaseName();
+
+            $constraint = DB::selectOne(
+                "SELECT CONSTRAINT_NAME
+                 FROM information_schema.TABLE_CONSTRAINTS
+                 WHERE CONSTRAINT_SCHEMA = ?
+                   AND TABLE_NAME = 'candidates'
+                   AND CONSTRAINT_NAME = 'candidates_contract_status_check'
+                   AND CONSTRAINT_TYPE = 'CHECK'
+                 LIMIT 1",
+                [$database]
+            );
+
+            if ($constraint) {
+                DB::statement('ALTER TABLE candidates DROP CHECK candidates_contract_status_check');
+            }
+        }
     }
 
     /**
@@ -20,7 +43,15 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Recreate the original check constraint with old ENUM values
-        DB::statement("ALTER TABLE candidates ADD CONSTRAINT candidates_contract_status_check CHECK (contract_status IN ('pending', 'signed', 'rejected'))");
+        $driver = DB::connection()->getDriverName();
+
+        if (! in_array($driver, ['pgsql', 'mysql'], true)) {
+            return;
+        }
+
+        try {
+            DB::statement("ALTER TABLE candidates ADD CONSTRAINT candidates_contract_status_check CHECK (contract_status IN ('pending', 'signed', 'rejected'))");
+        } catch (\Throwable) {
+        }
     }
 };
