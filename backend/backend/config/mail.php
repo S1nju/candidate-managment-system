@@ -3,7 +3,7 @@
 $mailPassword = env('MAIL_PASSWORD');
 $mailPasswordB64 = env('MAIL_PASSWORD_B64');
 
-if ((is_null($mailPassword) || $mailPassword === '') && is_string($mailPasswordB64) && $mailPasswordB64 !== '') {
+if (is_string($mailPasswordB64) && $mailPasswordB64 !== '') {
     $decoded = base64_decode($mailPasswordB64, true);
 
     if ($decoded !== false) {
