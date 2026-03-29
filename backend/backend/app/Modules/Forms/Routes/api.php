@@ -3,6 +3,7 @@
 use App\Modules\Forms\Http\Controllers\FormController;
 use App\Modules\Forms\Http\Controllers\PublicFormController;
 use App\Modules\Forms\Http\Controllers\FormContractController;
+use App\Modules\Forms\Http\Controllers\EmailContractController;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes - protected by auth
@@ -12,6 +13,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('forms/{formId}/contracts/{id}/template', [FormContractController::class, 'downloadTemplate']);
     Route::get('generated-contracts/{id}/download', [FormContractController::class, 'downloadGenerated']);
     Route::apiResource('forms.contracts', FormContractController::class);
+    
+    // Email Contracts
+    Route::apiResource('email-contracts', EmailContractController::class);
+    Route::post('email-contracts/upload-template', [EmailContractController::class, 'uploadTemplate']);
+    Route::post('email-contracts/send', [EmailContractController::class, 'send']);
 });
 
 // Public routes - no authentication required
