@@ -1,44 +1,25 @@
 "use client"
 
 import useSWR from "swr"
-import axios from "@/lib/axios"
+import { authApi } from "@/services/api"
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Cookies from "js-cookie"
+
 export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: "guest" | "auth", redirectIfAuthenticated?: string } = {}) => {
   const router = useRouter()
 
-  const { data: user, error, mutate } = useSWR("/api/user", null, {
+  const { data: user, error, mutate } = useSWR("/api/user", () => authApi.getCurrentUser(), {
     revalidateOnFocus: false,
     revalidateIfStale: false,
   })
 
-  const csrf = () => axios.get("/sanctum/csrf-cookie")
-
   const login = async ({ setErrors, ...props }: any) => {
-    await csrf()
-
     setErrors([])
 
     try {
-      const response = await axios.post("/api/login", props)
-      await mutate(response.data.user, false)
-      router.replace("/dashboard")
-    } catch (error: any) {
-      if (error.response?.status !== 422) throw error
-
-      setErrors(error.response.data.errors)
-    }
-  }
-
-  const register = async ({ setErrors, ...props }: any) => {
-    await csrf()
-
-    setErrors([])
-
-    try {
-      const response = await axios.post("/api/register", props)
-      await mutate(response.data.user, false)
+      const data = await authApi.login(props)
+      await mutate(data.user, false)
       router.replace("/dashboard")
     } catch (error: any) {
       if (error.response?.status !== 422) throw error
@@ -49,7 +30,7 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
 
   const logout = async () => {
     if (!error) {
-      await axios.post("/api/logout").then(() => {
+      await authApi.logout().then(() => {
         Cookies.remove("XSRF-TOKEN")
         Cookies.remove("laravel_session")
 
@@ -57,8 +38,6 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
         window.location.href = "/login"
       })
     }
-
-
   }
 
   const isLoading = !user && !error
@@ -73,7 +52,7 @@ export const useAuth = ({ middleware, redirectIfAuthenticated }: { middleware?: 
     isLoading,
     mutate,
     login,
-    register,
     logout,
   }
 }
+

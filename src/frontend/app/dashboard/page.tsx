@@ -1,9 +1,6 @@
 "use client"
 
-
-import DashboardAnalytics from "./analytics"
-
-
+import DashboardAnalytics from "@/components/dashboard/analytics"
 import { useLanguage } from "@/context/language-context"
 
 export default function DashboardPage() {
@@ -15,8 +12,7 @@ export default function DashboardPage() {
 				<p className="text-muted-foreground">{t("dashboard.welcome")}</p>
 			</div>
 			<DashboardAnalytics />
-
-
 		</div>
 	)
 }
+

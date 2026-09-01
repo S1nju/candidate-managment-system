@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import useSWR from "swr"
-import axios from "@/lib/axios"
+import { auditApi } from "@/services/api"
 import { useLanguage } from "@/context/language-context"
 import { useAuth } from "@/hooks/use-auth"
 import {
@@ -42,25 +42,24 @@ export default function AuditPage() {
 
     const isAdmin = user?.roles?.some((r: any) => r.name === 'admin')
 
-    // Fetch filter options (users and unique actions)
+    // Fetch filter options using domain API
     const { data: filterOptions } = useSWR(isAdmin ? '/api/audit-logs/filters' : null, () =>
-        axios.get('/api/audit-logs/filters').then(res => res.data)
+        auditApi.getAuditFilters()
     )
 
     const { data: response, error, isLoading } = useSWR(
         isAdmin ? `/api/audit-logs?page=${page}&per_page=${pageSize}&search=${search}&action=${action}&user_id=${userId}&start_date=${startDate}&end_date=${endDate}` : null,
-        () => axios.get(`/api/audit-logs`, {
-            params: {
-                page,
-                per_page: pageSize,
-                search: search || undefined,
-                action: action !== "all" ? action : undefined,
-                user_id: userId !== "all" ? userId : undefined,
-                start_date: startDate || undefined,
-                end_date: endDate || undefined
-            }
-        }).then((res) => res.data)
+        () => auditApi.getAuditLogs({
+            page,
+            per_page: pageSize,
+            search: search || undefined,
+            action: action !== "all" ? action : undefined,
+            user_id: userId !== "all" ? userId : undefined,
+            start_date: startDate || undefined,
+            end_date: endDate || undefined
+        })
     )
+
 
     const logs = response?.data || []
     const total = response?.total || 0
