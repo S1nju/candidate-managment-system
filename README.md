@@ -8,10 +8,11 @@ A robust, enterprise-grade Candidate Management and Contract E-Signing platform.
 
 The platform streamlines candidate onboarding, document generation, and digital identity verification:
 1. **Candidate Onboarding & Form Builder**: Dynamic form creation, custom fields, role-based form assignments, and public candidate submission portals.
-2. **Automated Contract Generation & E-Signing**: Template-based PDF generation (via TCPDF/FPDI), real-time document locking, canvas-based digital signatures, and public tokenized signing links.
+2. **Cryptographic Hash-Based Contract Signing & Verification**: HMAC-SHA256 digital signature generation, SHA-256 PDF file checksum tamper-detection engine, embedded security footer seals, and public signature verification portal.
 3. **Identity Verification Integration**: Third-party biometric identity verification via **Didit SDK** integration.
 4. **Role-Based Access Control (RBAC)**: Fine-grained user permissions and role filtering powered by `spatie/laravel-permission`.
 5. **Audit Logging & Analytics**: Complete activity trail (`AuditLog`) for tracking system actions and visual candidate analytics dashboards.
+
 
 ---
 
@@ -285,6 +286,43 @@ sequenceDiagram
 ```
 
 ---
+
+## 🔒 Cryptographic Hash-Based Signature Architecture
+
+The platform uses a tamper-evident digital signature verification engine (`SignatureSecurityService`) to guarantee document integrity and non-repudiation:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Signer as Signer (Candidate / Admin)
+    participant Engine as Signing Service
+    participant Security as SignatureSecurityService
+    participant PDF as PDF Storage
+    participant DB as MySQL Database
+    actor Public as Public Verifier
+
+    Signer->>Engine: Submit Digital Signature Payload
+    Engine->>PDF: Overlay Signature Image/Text onto PDF Template
+    PDF-->>Engine: PDF Generated on Storage Disk
+    Engine->>Security: Calculate SHA-256 File Checksum ($pdfChecksum)
+    Engine->>Security: Generate HMAC-SHA256 Signature Hash ($signatureHash)
+    Security-->>Engine: Return Cryptographic HMAC Hash
+    Engine->>PDF: Stamp Cryptographic Security Audit Seal onto PDF Footer
+    Engine->>DB: Store signature_hash & pdf_checksum in GeneratedContract
+    
+    Public->>Engine: GET /api/public/signature/{hash}/verify
+    Engine->>Security: Recalculate File Checksum & Validate HMAC Payload
+    Security-->>Public: Return Cryptographic Verification Report (Authentic / Tampered)
+```
+
+### Security & Integrity Features:
+1. **HMAC-SHA256 Signature Hash**: Calculated over canonical signer payload (`signer_id`, `signer_email`, `signer_role`, `contract_id`, `pdf_checksum`, `signed_at`, `ip_address`) using secret `config('app.key')`.
+2. **SHA-256 PDF Checksum Verification**: Detects any disk-level modifications or byte alterations to signed PDF files post-signing.
+3. **Embedded Cryptographic Audit Seal**: Stamps a tamper-evident verification footer onto every page of the signed PDF.
+4. **Public Verification API**: Anyone holding a document signature hash can query `GET /api/public/signature/{hash}/verify` to verify authenticity.
+
+---
+
 
 ## 🚀 Deployment Diagram
 
