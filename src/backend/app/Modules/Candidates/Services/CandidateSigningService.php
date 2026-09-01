@@ -10,11 +10,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\TcpdfFpdi;
 
+use App\Services\SignatureSecurityService;
+
 class CandidateSigningService
 {
     public function __construct(
         protected AuditService $auditService,
-        protected \App\Modules\Forms\Services\ContractGenerationService $contractGenService
+        protected \App\Modules\Forms\Services\ContractGenerationService $contractGenService,
+        protected SignatureSecurityService $securityService
     ) {}
 
     public function signContract(Candidate $candidate, ?User $user, array $data): bool
@@ -145,22 +148,43 @@ class CandidateSigningService
             // Embed signatures
             $this->embedSignatures($sourcePath, $signedPath, $overlays);
 
+            // Compute PDF Checksum
+            $pdfChecksum = $this->securityService->calculateFileChecksum($signedPath);
+            $signedAtIso = now()->toIso8601String();
+            $signerId = $isCandidateSigning ? $lockedCandidate->id : ($user ? $user->id : 'admin');
+            $signerEmail = $isCandidateSigning ? ($lockedCandidate->email ?? 'candidate@signme.com') : ($user->email ?? 'admin@signme.com');
+
+            // Generate Cryptographic HMAC-SHA256 Signature Hash
+            $signatureHash = $this->securityService->generateSignatureHash([
+                'signer_id' => $signerId,
+                'signer_email' => $signerEmail,
+                'signer_role' => $isCandidateSigning ? 'candidate' : 'admin',
+                'contract_id' => $contractDef->id,
+                'pdf_checksum' => $pdfChecksum,
+                'signed_at' => $signedAtIso,
+                'ip_address' => $data['ip_address'] ?? null,
+            ]);
+
             // STEP 5: Update GeneratedContract Record
             $metadata = $existingGenerated->signature_metadata ?? [];
             if ($isCandidateSigning) {
                 $metadata['candidate_signed'] = true;
-                $metadata['candidate_signed_at'] = now()->toIso8601String();
+                $metadata['candidate_signed_at'] = $signedAtIso;
             } else {
                 $metadata['admin_signed'] = true;
-                $metadata['admin_signed_by'] = $user->id;
-                $metadata['admin_signed_at'] = now()->toIso8601String();
+                $metadata['admin_signed_by'] = $user ? $user->id : null;
+                $metadata['admin_signed_at'] = $signedAtIso;
             }
             $metadata['ip_address'] = $data['ip_address'] ?? null;
             $metadata['user_agent'] = $data['user_agent'] ?? null;
+            $metadata['signature_hash'] = $signatureHash;
+            $metadata['pdf_checksum'] = $pdfChecksum;
 
             $updateData = [
                 'signed_path' => $signedPathRel, // Always update to latest signed version
                 'signature_metadata' => $metadata,
+                'signature_hash' => $signatureHash,
+                'pdf_checksum' => $pdfChecksum,
             ];
 
             // Determine if fully completed for this specific contract

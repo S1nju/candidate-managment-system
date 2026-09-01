@@ -31,6 +31,12 @@ export const signingApi = {
     })
     return response.data
   },
+
+  async verifySignatureHash(hash: string) {
+    const response = await apiClient.get(`/api/public/signature/${encodeURIComponent(hash)}/verify`)
+    return response.data
+  },
 }
 
 export default signingApi
+
