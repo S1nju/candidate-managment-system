@@ -282,10 +282,75 @@ sequenceDiagram
     Didit->>API: Webhook GET /api/candidates/verify-callback
     API->>API: Store CandidateVerification Result
     FE->>API: GET /api/candidates/didit-decision/{sessionId}
-    API-->>FE: Return Verification Approval Status
 ```
 
 ---
+
+## 🚀 Deployment Diagram
+
+```mermaid
+graph TB
+    subgraph Clients ["Client Infrastructure"]
+        UserBrowser["Admin / Recruiter Web Browser"]
+        CandidateMobile["Candidate Mobile / Tablet Browser"]
+    end
+
+    subgraph Edge ["Edge & Ingress Layer"]
+        Proxy["Reverse Proxy / Nginx / Cloudflare (SSL Offloading)"]
+    end
+
+    subgraph DockerHost ["Docker Container Network (Docker Compose Stack)"]
+        subgraph FEContainer ["Frontend Container (signme-frontend)"]
+            NextServer["Next.js 16 App Server (Node.js) :3000"]
+        end
+
+        subgraph BEContainer ["Backend API Container (signme-app)"]
+            LaravelAPI["PHP 8.3 FPM / Laravel 12 API Engine :8000"]
+        end
+
+        subgraph ReverbContainer ["WebSocket Container (signme-reverb)"]
+            ReverbServer["Laravel Reverb Server :8080"]
+        end
+
+        subgraph DBContainer ["Database Container (signme-db)"]
+            MySQL["MySQL 8.0 Engine :3306"]
+        end
+
+        subgraph RedisContainer ["Cache Container (signme-redis)"]
+            Redis["Redis In-Memory Data Store :6379"]
+        end
+
+        subgraph VolumeStorage ["Docker Persistent Volumes"]
+            MySQLData[("mysql_data Volume")]
+            StorageData[("storage_data Volume (PDF Contracts & Signatures)")]
+        end
+    end
+
+    subgraph ExternalServices ["External Third-Party Services"]
+        DiditAPI["Didit Identity Verification API"]
+        SMTPProvider["SMTP Mail Server"]
+    end
+
+    UserBrowser -->|HTTPS :443| Proxy
+    CandidateMobile -->|HTTPS :443| Proxy
+
+    Proxy -->|HTTP :3000| NextServer
+    Proxy -->|HTTP :8000| LaravelAPI
+    Proxy -->|WSS :8080| ReverbServer
+
+    NextServer -->|Internal REST API| LaravelAPI
+    LaravelAPI -->|PDO DB Queries| MySQL
+    LaravelAPI -->|Cache / Sessions| Redis
+    LaravelAPI -->|Broadcasting| ReverbServer
+    LaravelAPI -->|Read/Write Files| StorageData
+    MySQL --> MySQLData
+
+    LaravelAPI -->|REST Webhooks| DiditAPI
+    LaravelAPI -->|SMTPS :465| SMTPProvider
+```
+
+---
+
 
 ## ⚡ Quick Start & Setup
 
