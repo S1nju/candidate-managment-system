@@ -289,7 +289,41 @@ sequenceDiagram
 
 ## ⚡ Quick Start & Setup
 
-### Backend (Laravel 12)
+### 🐳 Option 1: Quick Start with Docker (Recommended)
+
+The repository includes a pre-configured multi-container Docker setup (`src/docker-compose.yaml`) with **Laravel App API**, **Next.js Frontend**, **MySQL 8.0**, **Redis**, and **Laravel Reverb WebSocket server**.
+
+1. **Environment Setup**:
+   ```bash
+   cd src
+   cp backend/.env.example backend/.env
+   cp frontend/.env.local.example frontend/.env.local
+   ```
+
+2. **Configure environment variables** in `src/backend/.env`:
+   - Set required values: `APP_KEY`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `MAIL_HOST`, `MAIL_FROM_ADDRESS`.
+
+3. **Start Container Stack**:
+   ```bash
+   cd src
+   docker compose up -d --build
+   ```
+
+4. **Run Database Migrations & Key Generation** (First-time setup):
+   ```bash
+   docker exec -it signme-app php artisan key:generate
+   docker exec -it signme-app php artisan migrate --seed
+   ```
+
+5. **Access Application**:
+   - **Frontend App**: `http://localhost:3000` (or `https://signmehere.cloud`)
+   - **Backend API**: `http://localhost:8000` (or `https://api.signmehere.cloud`)
+
+---
+
+### 💻 Option 2: Local Development Setup
+
+#### Backend (Laravel 12)
 ```bash
 cd src/backend
 composer install
@@ -299,10 +333,11 @@ php artisan migrate
 php artisan serve
 ```
 
-### Frontend (Next.js 16)
+#### Frontend (Next.js 16)
 ```bash
 cd src/frontend
 npm install
 cp .env.local.example .env.local
 npm run dev
 ```
+
