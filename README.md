@@ -406,3 +406,15 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
+---
+
+## 🔑 Default Seeded Credentials
+
+When running seeders (`php artisan db:seed` or `php artisan migrate --seed`), the following test accounts are automatically generated:
+
+| Role | Email Address | Default Password | Access Privileges |
+| :--- | :--- | :--- | :--- |
+| **Admin User** | `admin@signme.com` | `password` | Full Administrative & System Management Access |
+| **Worker User** | `worker@signme.com` | `password` | Recruiter & Candidate Management Access |
+
+
