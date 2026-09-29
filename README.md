@@ -1,6 +1,6 @@
 # Candidate Management & Contract Automation System
 
-A robust, enterprise-grade Candidate Management and Contract E-Signing platform. Built with a **Domain-Driven Laravel 12 Backend** and a modern **Next.js 16 (App Router) Frontend** with a centralized Global API Service layer.
+A robust,  Candidate Management and Contract E-Signing platform. Built with a **Domain-Driven Laravel 12 Backend** and a modern **Next.js 16 (App Router) Frontend** with a centralized Global API Service layer.
 
 ---
 

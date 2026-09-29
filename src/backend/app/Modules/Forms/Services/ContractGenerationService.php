@@ -185,97 +185,19 @@ class ContractGenerationService
 
                     if ($isImage) {
                         if (! empty($value)) {
-                            $foundPath = null;
-                            $tempFiles = [];
-
-                            // Valid Base64 check
-                            if (is_string($value) && str_starts_with($value, 'data:image')) {
-                                if (preg_match('/^data:image\/(\w+);base64,/', $value, $type)) {
-                                    $data = substr($value, strpos($value, ',') + 1);
-                                    $data = base64_decode($data);
-                                    if ($data !== false) {
-                                        $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_base64');
-                                        file_put_contents($tempFile, $data);
-                                        $foundPath = $tempFile;
-                                        $tempFiles[] = $tempFile;
-                                        goto embed_image;
-                                    }
-                                }
-                            }
-
-                            // ROBUST: Try to map /storage/ to real storage path (avoids symlink/URL issues)
-                            if (is_string($value) && str_contains($value, '/storage/')) {
-                                $parts = explode('/storage/', $value, 2);
-                                if (isset($parts[1])) {
-                                    $candidatePath = storage_path('app/public/'.ltrim($parts[1], '/'));
-                                    if (file_exists($candidatePath)) {
-                                        $foundPath = $candidatePath;
-                                        goto embed_image;
-                                    }
-                                }
-                            }
-
-                            if (is_string($value) && str_starts_with($value, 'http')) {
-                                // Optimization: If it's a local storage URL, try to resolve to path directly
-                                $appUrl = config('app.url');
-                                if (str_starts_with($value, $appUrl) || str_contains($value, '/storage/')) {
-                                    // Try to parse relative path from URL
-                                    $relativePath = parse_url($value, PHP_URL_PATH);
-                                    if ($relativePath) {
-                                        // Remove /storage prefix if present to match storage_path('app/public') logic
-                                        // Usually /storage/foo maps to storage/app/public/foo
-                                        $cleanPath = str_replace('/storage/', '', $relativePath);
-                                        $localPath = storage_path('app/public/'.ltrim($cleanPath, '/'));
-
-                                        if (file_exists($localPath)) {
-                                            $foundPath = $localPath;
-                                            goto embed_image;
-                                        }
-                                    }
-                                }
-
-                                try {
-                                    $response = \Illuminate\Support\Facades\Http::timeout(5)->get($value);
-                                    if ($response->successful()) {
-                                        $tempFile = tempnam(sys_get_temp_dir(), 'contract_img');
-                                        file_put_contents($tempFile, $response->body());
-                                        $foundPath = $tempFile;
-                                        $tempFiles[] = $tempFile;
-                                    }
-                                } catch (\Exception $e) {
-                                    Log::error('GenContract: Download error: '.$e->getMessage());
-                                }
-                            } elseif (is_string($value) && $value) {
-                                $possiblePaths = [
-                                    storage_path('app/secure/'.$value),
-                                    storage_path('app/'.$value),
-                                    storage_path($value),
-                                    public_path($value),
-                                    $value,
-                                ];
-
-                                foreach ($possiblePaths as $testPath) {
-                                    if (file_exists($testPath) && is_file($testPath)) {
-                                        $foundPath = $testPath;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            embed_image:
+                            $imageResult = $this->resolveImagePath($value);
+                            $foundPath = $imageResult['path'];
 
                             try {
-                                if ($foundPath) {
+                                if ($foundPath && file_exists($foundPath)) {
                                     $pdf->Image($foundPath, $x, $y, $renderWidth, 0);
                                 }
                             } catch (\Exception $e) {
                                 Log::error('GenContract: Image embed error: '.$e->getMessage());
                             }
 
-                            foreach ($tempFiles as $tf) {
-                                if (file_exists($tf)) {
-                                    @unlink($tf);
-                                }
+                            if ($imageResult['is_temp'] && $foundPath && file_exists($foundPath)) {
+                                @unlink($foundPath);
                             }
                         }
                     } else {
@@ -396,6 +318,69 @@ class ContractGenerationService
             'in' => collect($actualValues)->contains(fn ($v) => in_array(strtolower($v), $expectedList, true)),
             default => collect($actualValues)->contains(fn ($v) => strcasecmp($v, $expectedStr) === 0), // 'equals'
         };
+    }
+
+    /**
+     * Resolve image path from string (base64, storage URL, http link, or file path).
+     */
+    protected function resolveImagePath(string $value): array
+    {
+        // 1. Base64 Image
+        if (str_starts_with($value, 'data:image')) {
+            if (preg_match('/^data:image\/(\w+);base64,/', $value)) {
+                $data = substr($value, strpos($value, ',') + 1);
+                $decoded = base64_decode($data);
+                if ($decoded !== false) {
+                    $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_b64');
+                    file_put_contents($tempFile, $decoded);
+
+                    return ['path' => $tempFile, 'is_temp' => true];
+                }
+            }
+        }
+
+        // 2. Storage URL / relative path
+        if (str_contains($value, '/storage/')) {
+            $parts = explode('/storage/', $value, 2);
+            if (isset($parts[1])) {
+                $candidatePath = storage_path('app/public/'.ltrim($parts[1], '/'));
+                if (file_exists($candidatePath)) {
+                    return ['path' => $candidatePath, 'is_temp' => false];
+                }
+            }
+        }
+
+        // 3. External HTTP(S) URL
+        if (str_starts_with($value, 'http')) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(5)->get($value);
+                if ($response->successful()) {
+                    $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_http');
+                    file_put_contents($tempFile, $response->body());
+
+                    return ['path' => $tempFile, 'is_temp' => true];
+                }
+            } catch (\Exception $e) {
+                Log::error('GenContract: Image download failed: '.$e->getMessage());
+            }
+        }
+
+        // 4. Local File System Paths
+        $possiblePaths = [
+            storage_path('app/secure/'.$value),
+            storage_path('app/'.$value),
+            storage_path($value),
+            public_path($value),
+            $value,
+        ];
+
+        foreach ($possiblePaths as $testPath) {
+            if (file_exists($testPath) && is_file($testPath)) {
+                return ['path' => $testPath, 'is_temp' => false];
+            }
+        }
+
+        return ['path' => null, 'is_temp' => false];
     }
 
     /**
