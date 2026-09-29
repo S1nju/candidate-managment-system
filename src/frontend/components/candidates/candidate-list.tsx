@@ -1,5 +1,6 @@
 "use client"
 
+import { getCandidateDisplayName } from "@/lib/candidate-name"
 import { useState, useEffect } from "react"
 import useSWR from "swr"
 import axios from "@/lib/axios"
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   UserIcon,
   Search,
@@ -30,7 +32,8 @@ import {
   Phone,
   Send,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
@@ -39,6 +42,14 @@ import { useAuth } from "@/hooks/use-auth"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/hooks/use-toast"
 import { EmailEditorDialog } from "@/components/candidates/email-editor-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface Candidate {
   id: number
@@ -50,11 +61,10 @@ interface Candidate {
   created_at: string
   signature_id: number | null
   contract_status?: string
-  assigned_to?: number
-  assigned_to_user?: any
   form?: {
     id: number
     title: string
+    color?: string
   }
 }
 
@@ -70,6 +80,8 @@ export function CandidateList() {
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [isEmailOpen, setIsEmailOpen] = useState(false)
+  const [candidateToDelete, setCandidateToDelete] = useState<Candidate | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Debounce search input
   useEffect(() => {
@@ -89,7 +101,6 @@ export function CandidateList() {
   })
 
   const { data: response, error, isLoading, mutate } = useSWR(`/api/candidates?${queryParams.toString()}`)
-  const { data: workers } = useSWR(isAdmin ? "/api/admin/users" : null)
   const { data: forms } = useSWR("/api/forms")
 
   const candidates = (response?.data as Candidate[] || [])
@@ -112,13 +123,18 @@ export function CandidateList() {
     }
   }
 
-  const handleAssign = async (candidateId: number, workerId: string) => {
+  const handleDelete = async () => {
+    if (!candidateToDelete) return
+    setIsDeleting(true)
     try {
-      await axios.post(`/api/candidates/${candidateId}/assign`, { assigned_to: workerId })
-      toast({ title: "Candidate assigned" })
+      await axios.delete(`/api/candidates/${candidateToDelete.id}`)
+      toast({ title: t("candidates.list.delete_success") })
+      setCandidateToDelete(null)
       mutate()
     } catch (error) {
-      toast({ title: "Failed to assign", variant: "destructive" })
+      toast({ title: t("candidates.list.delete_failed"), variant: "destructive" })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -149,6 +165,23 @@ export function CandidateList() {
 
   return (
     <div className="space-y-4">
+      {isAdmin && (
+        <Tabs value={formId} onValueChange={(val) => { setFormId(val); setPage(1); }}>
+          <TabsList className="bg-muted/50 border h-auto flex-wrap justify-start">
+            <TabsTrigger value="all">{t("candidates.list.all_forms")}</TabsTrigger>
+            {forms?.map((f: any) => (
+              <TabsTrigger key={f.id} value={f.id.toString()} className="flex items-center gap-2">
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: f.color || "#3b82f6" }}
+                />
+                {f.title}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
+
       {/* Filters & Bulk Actions */}
       <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center justify-between pb-2">
         <div className="flex items-center gap-4 flex-1">
@@ -164,25 +197,12 @@ export function CandidateList() {
           {isAdmin && selectedIds.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => setIsEmailOpen(true)} className="flex items-center gap-2">
               <Send className="h-4 w-4" />
-              Email ({selectedIds.length})
+              {t("candidates.list.email_selected").replace("{count}", selectedIds.length.toString())}
             </Button>
           )}
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          {isAdmin && (
-            <Select value={formId} onValueChange={(val) => { setFormId(val); setPage(1); }}>
-              <SelectTrigger className="w-[180px] h-10 bg-card">
-                <SelectValue placeholder="All Forms" />
-              </SelectTrigger>
-              <SelectContent className="bg-card">
-                <SelectItem value="all">All Forms</SelectItem>
-                {forms?.map((f: any) => (
-                  <SelectItem key={f.id} value={f.id.toString()}>{f.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
 
           <Select value={status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[180px] h-10 bg-card">
@@ -213,11 +233,9 @@ export function CandidateList() {
                 </TableHead>
               )}
               <TableHead className="font-semibold">{t("candidates.list.table.name")}</TableHead>
-              <TableHead className="font-semibold">{t("candidates.list.table.contact")}</TableHead>
               <TableHead className="font-semibold">{t("candidates.list.table.form")}</TableHead>
-              <TableHead className="font-semibold">{t("candidates.list.table.position")}</TableHead>
+              <TableHead className="font-semibold">{t("candidates.list.table.contact")}</TableHead>
               <TableHead className="font-semibold">{t("candidates.list.table.status")}</TableHead>
-              {isAdmin && <TableHead className="font-semibold">{t("candidates.list.table.assigned_to")}</TableHead>}
               <TableHead className="text-right font-semibold">{t("candidates.list.table.actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -227,11 +245,9 @@ export function CandidateList() {
                 <TableRow key={i}>
                   {isAdmin && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                   <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  {isAdmin && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
                   <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))
@@ -246,13 +262,30 @@ export function CandidateList() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
+                  <TableCell className="font-medium p-0">
+                    <Link href={`/dashboard/candidates/${c.id}`} className="flex items-center gap-3 p-4 hover:underline">
                       <div className="p-2 rounded-lg bg-muted">
                         <UserIcon className="w-4 h-4" />
                       </div>
-                      <span className="font-semibold">{c.name}</span>
-                    </div>
+                      <span className="font-semibold">{getCandidateDisplayName(c)}</span>
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    {c.form ? (
+                      <Badge
+                        variant="outline"
+                        className="font-normal"
+                        style={{
+                          borderColor: c.form.color || "#3b82f6",
+                          color: c.form.color || "#3b82f6",
+                          backgroundColor: `${c.form.color || "#3b82f6"}1A`,
+                        }}
+                      >
+                        {c.form.title}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">{t("common.all")}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col text-sm text-muted-foreground">
@@ -261,61 +294,45 @@ export function CandidateList() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {c.form ? (
-                      <Badge variant="outline" className="font-normal">{c.form.title}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">{t("common.all")}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{c.position}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`capitalize px-2 py-0.5 font-medium ${getStatusColor(c.contract_status || "pending")}`}>
+                    <Badge variant="outline" className={`px-2 py-0.5 font-medium ${getStatusColor(c.contract_status || "pending")}`}>
                       {getStatusLabel(c.contract_status || "pending")}
                     </Badge>
                   </TableCell>
-                  {isAdmin && (
-                    <TableCell>
-                      <Select
-                        value={c.assigned_to?.toString() || "unassigned"}
-                        onValueChange={(val) => handleAssign(c.id, val === "unassigned" ? "" : val)}
-                      >
-                        <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 w-[140px] text-foreground transition-colors">
-                          <SelectValue placeholder={t("dashboard.stats.unsigned")}>
-                            {c.assigned_to_user?.name || t("dashboard.stats.unsigned")}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="bg-card">
-                          <SelectItem value="unassigned">{t("dashboard.stats.unsigned")}</SelectItem>
-                          {(Array.isArray(workers) ? workers : [])?.map((w: any) => (
-                            <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  )}
                   <TableCell className="text-right">
-                    <Link href={`/dashboard/candidates/${c.id}`}>
-                      <Button variant="ghost" size="sm" className="text-slate-500 hover:text-primary">
-                        <EyeIcon className="w-4 h-4 mr-2" />
-                        {t("candidates.list.actions.view")}
-                      </Button>
-                    </Link>
+                    <div className="flex items-center justify-end gap-1">
+                      <Link href={`/dashboard/candidates/${c.id}`}>
+                        <Button variant="ghost" size="sm" className="text-slate-500 hover:text-primary">
+                          <EyeIcon className="w-4 h-4 mr-2" />
+                          {t("candidates.list.actions.view")}
+                        </Button>
+                      </Link>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-500 hover:text-destructive"
+                          onClick={() => setCandidateToDelete(c)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 8 : 6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center text-muted-foreground">
                   {t("candidates.list.no_results")}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-      </div >
+      </div>
 
       {/* Modern Pagination Controls */}
-      < div className="flex items-center justify-between px-2 py-4 border-t border-slate-100" >
+      <div className="flex items-center justify-between px-2 py-4 border-t border-slate-100 dark:border-slate-800">
         <div className="text-sm text-muted-foreground">
           {t("candidates.list.pagination_summary")
             ? t("candidates.list.pagination_summary")
@@ -352,13 +369,32 @@ export function CandidateList() {
             </Button>
           </div>
         </div>
-      </div >
+      </div>
 
       <EmailEditorDialog
         isOpen={isEmailOpen}
         onClose={() => setIsEmailOpen(false)}
         recipients={candidates.filter(c => selectedIds.includes(c.id)).map(c => c.email)}
       />
-    </div >
+
+      <Dialog open={!!candidateToDelete} onOpenChange={(open) => !open && setCandidateToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("candidates.list.delete_confirm_title")}</DialogTitle>
+            <DialogDescription>
+              {t("candidates.list.delete_confirm_desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCandidateToDelete(null)} disabled={isDeleting}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {t("candidates.list.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

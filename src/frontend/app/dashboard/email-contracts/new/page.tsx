@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface PlaceholderMapping {
     placeholder: string
-    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature'
+    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature' | 'concat'
     field_name: string
     field_type?: 'text' | 'image' | 'date' | 'file'
     value?: string

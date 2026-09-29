@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->trustProxies(at: '*');
+        // Keep leading/trailing spaces of concat separators (e.g. " - ").
+        $middleware->trimStrings(except: ['placeholders.*.separator']);
         $middleware->validateCsrfTokens(except: [
             'api/public/candidate/*/sign',
             'api/candidates/*/sign-contract',
@@ -39,7 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (\Throwable $e) {
-            error_log('EMERGENCY ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            error_log('EMERGENCY ERROR: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
             error_log($e->getTraceAsString());
         });
     })->create();

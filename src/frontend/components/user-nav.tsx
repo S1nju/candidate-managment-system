@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { LogOutIcon, UserIcon, SettingsIcon } from "lucide-react"
 import Link from "next/link"
@@ -33,24 +33,31 @@ export function UserNav() {
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : user.email?.[0]?.toUpperCase() || "U"
 
+  const seed = user.name || user.email || "U"
+  const hue = Array.from(seed as string).reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-full justify-start gap-2 px-2">
           <Avatar className="size-8">
-            <AvatarImage src="/placeholder.svg" alt={user.name || "User"} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback
+              className="font-semibold text-white"
+              style={{ backgroundColor: `hsl(${hue} 55% 42%)` }}
+            >
+              {initials}
+            </AvatarFallback>
           </Avatar>
           <div className="flex flex-1 flex-col items-start text-left text-sm">
-            <span className="font-medium">{user.name || "User"}</span>
-            <span className="text-xs text-muted-foreground">{user.email}</span>
+            <span className="font-medium">{user.name || t("common.user_fallback")}</span>
+            <span className="text-xs text-muted-foreground truncate max-w-[140px]">{user.email}</span>
           </div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium leading-none">{user.name || "User"}</p>
+            <p className="text-sm font-medium leading-none">{user.name || t("common.user_fallback")}</p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>

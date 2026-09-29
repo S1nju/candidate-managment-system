@@ -2,13 +2,12 @@
 
 namespace App\Modules\Forms\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
 use App\Models\User;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Form extends Model
 {
@@ -29,6 +28,7 @@ class Form extends Model
         'title',
         'description',
         'status',
+        'color',
         'completion_attachment_path',
         'kyc_enabled',
         'created_by',
@@ -49,6 +49,7 @@ class Form extends Model
             }
         });
     }
+
     public function fields(): HasMany
     {
         return $this->hasMany(FormField::class)->orderBy('order');
@@ -58,7 +59,7 @@ class Form extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    
+
     public function role(): BelongsTo
     {
         return $this->belongsTo(\Spatie\Permission\Models\Role::class);

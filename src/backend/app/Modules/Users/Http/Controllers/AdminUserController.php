@@ -29,15 +29,17 @@ class AdminUserController extends Controller
             'password' => ['required', Password::defaults()],
             'roles' => 'array',
             'roles.*' => 'string|exists:roles,name',
+            'force_password_reset' => 'boolean',
         ]);
 
         $user = \App\Models\User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'force_password_reset' => $validated['force_password_reset'] ?? false,
         ]);
 
-        if (!empty($validated['roles'])) {
+        if (! empty($validated['roles'])) {
             $user->syncRoles($validated['roles']);
         }
 
@@ -59,7 +61,7 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
+            'email' => 'required|email|unique:users,email,'.$user->id,
             'roles' => 'array',
             'roles.*' => 'string|exists:roles,name',
         ]);

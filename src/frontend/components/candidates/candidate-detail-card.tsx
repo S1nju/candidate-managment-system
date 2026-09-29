@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { UserIcon, FileTextIcon } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
+import { getCandidateDisplayName } from "@/lib/candidate-name"
 
 export function CandidateDetailCard({ candidate }: { candidate: any }) {
   const { t } = useLanguage()
@@ -24,7 +25,7 @@ export function CandidateDetailCard({ candidate }: { candidate: any }) {
         </div>
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold">{candidate.name}</span>
+            <span className="text-xl font-bold">{getCandidateDisplayName(candidate)}</span>
             <Badge variant="outline">{candidate.position}</Badge>
           </div>
           <div className="text-muted-foreground text-sm">{candidate.email}</div>

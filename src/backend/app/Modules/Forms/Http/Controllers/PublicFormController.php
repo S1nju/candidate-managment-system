@@ -15,11 +15,15 @@ class PublicFormController extends Controller
     /**
      * Get form by UUID for public access
      */
-    public function show(string $uuid)
+    public function show(Request $request, string $uuid)
     {
+        // Admins can preview non-active (draft/disabled) forms with ?preview=1.
+        // The route is public, so resolve the Sanctum user explicitly.
+        $isPreview = $request->boolean('preview') && $request->user('sanctum')?->hasRole('admin');
+
         $form = Form::with('fields')
             ->where('uuid', $uuid)
-            ->where('status', 'active')
+            ->when(! $isPreview, fn ($query) => $query->where('status', 'active'))
             ->firstOrFail();
 
         return response()->json($form);
@@ -41,12 +45,48 @@ class PublicFormController extends Controller
             'fields.email' => 'required|email|max:255',
         ];
 
+        $messages = [];
+        $rawFieldsData = $request->input('fields', []);
+
+        // Evaluate each field's own logic conditions against the raw submitted
+        // data - a field hidden by a condition must not be required server-side,
+        // otherwise the candidate can never submit the form.
+        $conditionsMet = function ($field) use ($rawFieldsData) {
+            if (empty($field->conditions)) {
+                return true;
+            }
+
+            foreach ($field->conditions as $cond) {
+                if (empty($cond['field']) || empty($cond['operator'])) {
+                    continue;
+                }
+
+                $depValue = trim((string) ($rawFieldsData[$cond['field']] ?? ''));
+                $expected = trim((string) ($cond['value'] ?? ''));
+
+                if ($cond['operator'] === 'equals' && $depValue !== $expected) {
+                    return false;
+                }
+                if ($cond['operator'] === 'not_equals' && $depValue === $expected) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
         foreach ($form->fields as $field) {
             if (in_array($field->name, ['name', 'email'])) {
                 continue;
             }
 
             $fieldRules = [];
+
+            if (! $conditionsMet($field)) {
+                $rules['fields.'.$field->name] = 'nullable';
+
+                continue;
+            }
 
             if ($field->validation_rules) {
                 if (isset($field->validation_rules['required']) && $field->validation_rules['required']) {
@@ -58,6 +98,16 @@ class PublicFormController extends Controller
                 if (isset($field->validation_rules['min'])) {
                     $fieldRules[] = 'min:'.$field->validation_rules['min'];
                 }
+                if (
+                    ! empty($field->validation_rules['pattern'])
+                    && in_array($field->type, ['text', 'number', 'textarea'])
+                ) {
+                    $fieldRules[] = 'regex:/'.str_replace('/', '\/', $field->validation_rules['pattern']).'/';
+
+                    if (! empty($field->validation_rules['pattern_message'])) {
+                        $messages['fields.'.$field->name.'.regex'] = $field->validation_rules['pattern_message'];
+                    }
+                }
             }
 
             // Add type-specific validation
@@ -68,6 +118,8 @@ class PublicFormController extends Controller
                 $fieldRules[] = 'numeric';
             } elseif ($field->type === 'file' || $field->type === 'image') {
                 $fieldRules[] = 'file';
+            } elseif ($field->type === 'checkbox_group') {
+                $fieldRules[] = 'array';
             } elseif (in_array($field->type, ['text', 'textarea'])) {
                 $fieldRules[] = 'string';
             }
@@ -75,7 +127,7 @@ class PublicFormController extends Controller
             $rules['fields.'.$field->name] = $fieldRules;
         }
 
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             return response()->json([

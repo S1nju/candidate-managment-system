@@ -59,6 +59,31 @@ class Candidate extends Model
         'signed_by_candidate_at' => 'datetime',
     ];
 
+    /**
+     * "Prénom Nom": the first name lives in the dynamic form data (key like "prénom(s)").
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        $lastName = trim((string) $this->name);
+        $firstName = '';
+
+        foreach ((array) $this->data as $key => $value) {
+            if (preg_match('/pr[eé]nom|first[\s_-]?name|given[\s_-]?name/iu', (string) $key)) {
+                $firstName = trim(is_array($value) ? implode(' ', $value) : (string) $value);
+                break;
+            }
+        }
+
+        if ($firstName === '') {
+            return $lastName;
+        }
+        if ($lastName === '' || stripos($lastName, $firstName) !== false) {
+            return $lastName !== '' ? $lastName : $firstName;
+        }
+
+        return $firstName.' '.$lastName;
+    }
+
     public function signature()
     {
         return $this->belongsTo(\App\Modules\Signing\Models\Signature::class);

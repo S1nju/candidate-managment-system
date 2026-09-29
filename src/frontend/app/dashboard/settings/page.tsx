@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { useTheme } from "next-themes"
+import { useLanguage } from "@/context/language-context"
 
 export default function SettingsPage() {
+  const { t } = useLanguage()
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
   const [settings, setSettings] = useState({
@@ -21,43 +23,43 @@ export default function SettingsPage() {
   const handleSave = () => {
     // In production, save to backend via axiosClient
     toast({
-      title: "Settings saved",
-      description: "Your preferences have been updated successfully.",
+      title: t("settings.toast_title"),
+      description: t("settings.toast_description"),
     })
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your application preferences and settings</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("settings.title")}</h1>
+        <p className="text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Customize the look and feel of the application</CardDescription>
+            <CardTitle>{t("settings.appearance.title")}</CardTitle>
+            <CardDescription>{t("settings.appearance.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="theme">Theme</Label>
-                <p className="text-sm text-muted-foreground">Choose your preferred color scheme</p>
+                <Label htmlFor="theme">{t("settings.appearance.theme_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.appearance.theme_desc")}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")}>
-                  Light
+                  {t("settings.appearance.light")}
                 </Button>
                 <Button size="sm" variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")}>
-                  Dark
+                  {t("settings.appearance.dark")}
                 </Button>
                 <Button
                   size="sm"
                   variant={theme === "system" ? "default" : "outline"}
                   onClick={() => setTheme("system")}
                 >
-                  System
+                  {t("settings.appearance.system")}
                 </Button>
               </div>
             </div>
@@ -66,14 +68,14 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>Configure how you receive updates</CardDescription>
+            <CardTitle>{t("settings.notifications.title")}</CardTitle>
+            <CardDescription>{t("settings.notifications.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="email-notifications">Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive email updates about your activity</p>
+                <Label htmlFor="email-notifications">{t("settings.notifications.email_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.notifications.email_desc")}</p>
               </div>
               <Switch
                 id="email-notifications"
@@ -84,8 +86,8 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="push-notifications">Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">Get push notifications in your browser</p>
+                <Label htmlFor="push-notifications">{t("settings.notifications.push_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.notifications.push_desc")}</p>
               </div>
               <Switch
                 id="push-notifications"
@@ -96,8 +98,8 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="weekly-report">Weekly Report</Label>
-                <p className="text-sm text-muted-foreground">Receive a weekly summary of your activity</p>
+                <Label htmlFor="weekly-report">{t("settings.notifications.weekly_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.notifications.weekly_desc")}</p>
               </div>
               <Switch
                 id="weekly-report"
@@ -108,8 +110,8 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="newsletter">Newsletter</Label>
-                <p className="text-sm text-muted-foreground">Subscribe to our monthly newsletter</p>
+                <Label htmlFor="newsletter">{t("settings.notifications.newsletter_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.notifications.newsletter_desc")}</p>
               </div>
               <Switch
                 id="newsletter"
@@ -122,24 +124,24 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Danger Zone</CardTitle>
-            <CardDescription>Irreversible actions for your account</CardDescription>
+            <CardTitle>{t("settings.danger_zone.title")}</CardTitle>
+            <CardDescription>{t("settings.danger_zone.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-destructive/50 p-4">
               <div className="space-y-0.5">
-                <Label>Delete Account</Label>
-                <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+                <Label>{t("settings.danger_zone.delete_account_label")}</Label>
+                <p className="text-sm text-muted-foreground">{t("settings.danger_zone.delete_account_desc")}</p>
               </div>
               <Button variant="destructive" size="sm">
-                Delete
+                {t("settings.danger_zone.delete_button")}
               </Button>
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button onClick={handleSave}>Save Settings</Button>
+          <Button onClick={handleSave}>{t("settings.save_button")}</Button>
         </div>
       </div>
     </div>

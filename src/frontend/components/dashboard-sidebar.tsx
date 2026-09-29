@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboardIcon, UserIcon, SettingsIcon, HomeIcon, FileTextIcon, ClipboardListIcon, ShieldIcon, FileCheckIcon, MailIcon } from "lucide-react"
+import { LayoutDashboardIcon, UserIcon, HomeIcon, FileTextIcon, ClipboardListIcon, ShieldIcon, FileCheckIcon, MailIcon, LibraryIcon, UsersIcon } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -80,7 +80,7 @@ export function DashboardSidebar() {
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/forms")}>
                     <Link href="/dashboard/forms">
                       <ClipboardListIcon className="size-4" />
-                      <span>Forms</span>
+                      <span>{t("sidebar.forms")}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -90,36 +90,21 @@ export function DashboardSidebar() {
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/email-contracts")}>
                     <Link href="/dashboard/email-contracts">
                       <MailIcon className="size-4" />
-                      <span>Email Contracts</span>
+                      <span>{t("sidebar.email_contracts")}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Account Group */}
-        <SidebarGroup>
-          <SidebarGroupLabel>{t("sidebar.account")}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/profile"}>
-                  <Link href="/dashboard/profile">
-                    <UserIcon className="size-4" />
-                    <span>{t("sidebar.profile")}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
-                  <Link href="/dashboard/settings">
-                    <SettingsIcon className="size-4" />
-                    <span>{t("sidebar.settings")}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/library")}>
+                    <Link href="/dashboard/library">
+                      <LibraryIcon className="size-4" />
+                      <span>{t("sidebar.library")}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -140,10 +125,18 @@ export function DashboardSidebar() {
               {isAdmin && (
                 <>
                   <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/users")}>
+                      <Link href="/dashboard/users">
+                        <UsersIcon className="size-4" />
+                        <span>{t("sidebar.users")}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/admin/roles")}>
                       <Link href="/dashboard/admin/roles">
                         <ShieldIcon className="size-4" />
-                        <span>Roles</span>
+                        <span>{t("sidebar.roles")}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

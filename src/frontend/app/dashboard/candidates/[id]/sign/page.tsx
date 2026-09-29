@@ -3,14 +3,13 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import dynamic from "next/dynamic"
-import { SignaturePad } from "@/components/signing/signature-pad"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Save, X, PenTool, Download, Shield } from "lucide-react"
+import { ArrowLeft, Save, X, Download, Shield } from "lucide-react"
 import axios from "@/lib/axios"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
 import useSWR from "swr"
-import { Calendar, PenLine, Stamp, Type, CheckSquare } from "lucide-react"
+import { CheckSquare } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import echo from "@/lib/echo"
 import { Input } from "@/components/ui/input"
@@ -23,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useLanguage } from "@/context/language-context"
+import { getCandidateDisplayName } from "@/lib/candidate-name"
 
 // Dynamically import PDFViewer to avoid SSR issues
 const PDFViewer = dynamic(
@@ -30,21 +30,7 @@ const PDFViewer = dynamic(
   { ssr: false }
 )
 
-const FIELD_TYPES = [
-  {
-    group: "Signatures & Stamps",
-    fields: [
-      { type: "signature", label: "Signature", icon: <PenLine className="h-4 w-4" /> },
-    ],
-  },
-  {
-    group: "Annotations",
-    fields: [
-      { type: "text", label: "Text", icon: <Type className="h-4 w-4" /> },
-      { type: "date", label: "Date", icon: <Calendar className="h-4 w-4" /> }
-    ]
-  }
-]
+const DEFAULT_STAMP_WIDTH = 20
 
 export default function SignCandidateContractPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = useAuth({ middleware: "auth" })
@@ -68,13 +54,13 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     value: string,
     placeholder_name?: string,
     field_name?: string,
-    placement: { x: number, y: number, page: number },
+    placement: { x: number, y: number, page: number, width?: number, height?: number },
     style?: React.CSSProperties
   }>>([])
 
   const [draggingSignatureIdx, setDraggingSignatureIdx] = useState<number | null>(null)
-  const [draggingField, setDraggingField] = useState<string | null>(null)
-  const [showSignaturePad, setShowSignaturePad] = useState(false)
+  // Empty box the stamp dialog was opened for (survives the mouseup that ends the click)
+  const [stampTargetIdx, setStampTargetIdx] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [showSavedSignatures, setShowSavedSignatures] = useState(false)
@@ -245,7 +231,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
       } catch (err) {
         console.error("Failed to get contract", err)
-        toast({ title: "Error", description: "Could not load contract", variant: "destructive" })
+        toast({ title: t("common.error"), description: t("candidates.sign.toasts.load_failed"), variant: "destructive" })
       } finally {
         setLoadingContract(false)
       }
@@ -287,7 +273,9 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         placement: {
           x: p.position.x,
           y: p.position.y,
-          page: p.position.page
+          page: p.position.page,
+          width: p.position.width,
+          height: p.position.height
         }
       })))
     } else {
@@ -300,7 +288,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
 
   const handleSave = async () => {
     if (signatures.length === 0 || signatures.some(s => !s.value)) {
-      toast({ title: "Incomplete", description: "Please provide your signature for all required spots.", variant: "destructive" })
+      toast({ title: t("candidates.sign.toasts.incomplete"), description: t("candidates.sign.toasts.incomplete_desc"), variant: "destructive" })
       return
     }
 
@@ -323,13 +311,13 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           "Accept": "application/json"
         }
       })
-      toast({ title: "Success", description: "Contract signed successfully" })
+      toast({ title: t("candidates.sign.toasts.success"), description: t("candidates.sign.toasts.signed") })
       router.push(`/dashboard/candidates`)
     } catch (error: any) {
       if (error.response?.status === 409) {
-        toast({ title: "Contract Locked", description: error.response.data.message, variant: "destructive" })
+        toast({ title: t("candidates.sign.toasts.locked"), description: error.response.data.message, variant: "destructive" })
       } else {
-        toast({ title: "Error", description: error.response?.data?.message || "Failed to sign contract", variant: "destructive" })
+        toast({ title: t("common.error"), description: error.response?.data?.message || t("candidates.sign.toasts.sign_failed"), variant: "destructive" })
       }
     } finally {
       setIsSaving(false)
@@ -340,10 +328,10 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     setIsRejecting(true)
     try {
       await axios.post(`/api/candidates/${id}/reject-contract`, { reason: rejectReason })
-      toast({ title: "Success", description: "Contract rejected" })
+      toast({ title: t("candidates.sign.toasts.success"), description: t("candidates.sign.toasts.rejected") })
       router.push(`/dashboard/candidates`)
     } catch (error: any) {
-      toast({ title: "Error", description: error.response?.data?.message || "Failed to reject contract", variant: "destructive" })
+      toast({ title: t("common.error"), description: error.response?.data?.message || t("candidates.sign.toasts.reject_failed"), variant: "destructive" })
     } finally {
       setIsRejecting(false)
       setShowRejectDialog(false)
@@ -354,15 +342,20 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     if (!contractFile) return;
     const link = document.createElement('a');
     link.href = contractFile;
-    link.download = `contract_${candidate?.name || id}.pdf`;
+    link.download = `contract_${(candidate && getCandidateDisplayName(candidate)) || id}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }
 
   const handleAddSavedSignature = (sigValue: string) => {
+    const targetIdx = stampTargetIdx
     setSignatures(prev => {
-      // If we have placeholders (empty values), fill them
+      // A specific empty box was clicked: stamp that one only
+      if (targetIdx !== null && prev[targetIdx]) {
+        return prev.map((s, i) => i === targetIdx ? { ...s, value: sigValue, type: "drawn" } : s);
+      }
+      // Otherwise fill the empty boxes
       const hasPlaceholders = prev.some(s => s.value === "");
       if (hasPlaceholders) {
         return prev.map(s => s.value === "" ? { ...s, value: sigValue, type: "drawn" } : s);
@@ -374,10 +367,31 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
       ]
     })
     setShowSavedSignatures(false)
-    toast({ title: "Signature added", description: "Position confirmed" })
+    setStampTargetIdx(null)
+    toast({ title: t("candidates.sign.toasts.stamp_added"), description: t("candidates.sign.toasts.position_confirmed") })
   }
 
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Resize a stamp from its corner handle. Width is a % of the page, kept centred on (x, y) like the PDF generator.
+  const startResize = (e: React.MouseEvent, idx: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const startX = e.clientX
+    const startWidth = signatures[idx]?.placement.width ?? DEFAULT_STAMP_WIDTH
+    const move = (ev: MouseEvent) => {
+      const width = Math.max(5, Math.min(80, startWidth + (((ev.clientX - startX) * 2) / rect.width) * 100))
+      setSignatures(prev => prev.map((s, i) => i === idx ? { ...s, placement: { ...s.placement, width } } : s))
+    }
+    const up = () => {
+      window.removeEventListener("mousemove", move)
+      window.removeEventListener("mouseup", up)
+    }
+    window.addEventListener("mousemove", move)
+    window.addEventListener("mouseup", up)
+  }
 
   // Drag logic
   useEffect(() => {
@@ -407,7 +421,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-muted/30 text-muted-foreground">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-        <p className="text-sm font-medium">Verifying contract availability...</p>
+        <p className="text-sm font-medium">{t("candidates.sign.verifying")}</p>
       </div>
     )
   }
@@ -425,21 +439,21 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <Shield className="w-8 h-8 text-yellow-600 dark:text-yellow-500" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Contract Busy</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">{t("candidates.sign.busy_title")}</h2>
           <p className="text-muted-foreground mb-6">
             <strong>{lockedBy}</strong> is currently signing this contract.
             To prevent errors, you cannot enter this page until they finish or leave the page.
           </p>
           <div className="bg-yellow-50 dark:bg-yellow-900/10 rounded-lg p-3 mb-6 flex items-center justify-center gap-2 text-yellow-700 dark:text-yellow-500 font-medium border border-yellow-100 dark:border-yellow-900/20 text-xs">
-            <span>Availability: Updates in real-time</span>
+            <span>{t("candidates.sign.busy_realtime")}</span>
           </div>
 
           <div className="space-y-3">
             <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-              Check Status Again
+              {t("candidates.sign.busy_check")}
             </Button>
             <Button onClick={() => router.push('/dashboard/candidates')} variant="link" className="w-full">
-              Go Back
+              {t("candidates.sign.busy_back")}
             </Button>
           </div>
         </div>
@@ -459,18 +473,18 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <X className="w-8 h-8 text-red-600 dark:text-red-500" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Contract Rejected</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">{t("candidates.sign.rejected_title")}</h2>
           <p className="text-muted-foreground mb-6">
-            This contract has been rejected and cannot be signed or viewed.
+            {t("candidates.sign.rejected_desc")}
           </p>
           {candidate.data?.rejection_reason && (
             <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-3 mb-6 text-left text-sm text-red-800 dark:text-red-300 border border-red-100 dark:border-red-900/20">
-              <span className="font-semibold block mb-1">Reason:</span>
+              <span className="font-semibold block mb-1">{t("candidates.sign.rejected_reason")}</span>
               {candidate.data.rejection_reason}
             </div>
           )}
           <Button onClick={() => router.push('/dashboard/candidates')} variant="outline" className="w-full">
-            Back to Candidates
+            {t("candidates.sign.back_to_candidates")}
           </Button>
         </div>
       </div>
@@ -499,11 +513,11 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                 </Badge>
               )}
             </h1>
-            <p className="text-xs text-muted-foreground">{candidate?.name}</p>
+            <p className="text-xs text-muted-foreground">{candidate ? getCandidateDisplayName(candidate) : ""}</p>
           </div>
           {activeUsers.filter(u => u.id !== user?.id).length > 0 && (
             <div className="flex -space-x-2 overflow-hidden ml-4 items-center">
-              <span className="text-[10px] text-muted-foreground mr-2 font-medium">Other signers:</span>
+              <span className="text-[10px] text-muted-foreground mr-2 font-medium">{t("candidates.sign.other_signers")}</span>
               {activeUsers.filter(u => u.id !== user?.id).map((u, i) => (
                 <div key={i} title={u.name} className="inline-block h-6 w-6 text-center rounded-full ring-2 ring-background bg-muted text-foreground flex items-center justify-center text-[10px] font-bold border">
                   {u.name.charAt(0)}
@@ -537,28 +551,6 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         <div
           ref={containerRef}
           className="lg:col-span-4 h-full border-r bg-muted/20 relative overflow-hidden"
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => {
-            const rect = containerRef.current?.getBoundingClientRect()
-            if (rect) {
-              const x = ((e.clientX - rect.left) / rect.width) * 100
-              const y = ((e.clientY - rect.top) / rect.height) * 100
-
-              if (draggingField === "signature") {
-                setSignatures(prev => [...prev, { type: "drawn", value: "", placement: { x, y, page: currentPage } }])
-                setShowSignaturePad(true)
-              } else if (draggingField === "date") {
-                const dateStr = new Date().toLocaleDateString()
-                setSignatures(prev => [...prev, { type: "text", value: dateStr, placement: { x, y, page: currentPage }, style: { fontSize: '12px' } }])
-              } else if (draggingField === "text") {
-                const text = prompt("Enter text:")
-                if (text) {
-                  setSignatures(prev => [...prev, { type: "text", value: text, placement: { x, y, page: currentPage }, style: { fontSize: '12px' } }])
-                }
-              }
-            }
-            setDraggingField(null)
-          }}
         >
           {loadingContract && <div>{t("candidates.sign.loading_pdf")}</div>}
 
@@ -569,30 +561,40 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                   <div
                     key={`s-${idx}`}
                     className={`absolute border-4 border-emerald-500 border-dashed p-2 group z-50 ${draggingSignatureIdx === idx ? "cursor-grabbing ring-4 ring-emerald-500/80 bg-emerald-100/60" : "cursor-pointer hover:bg-emerald-50"}`}
-                    style={{ left: `${sig.placement?.x}%`, top: `${sig.placement?.y}%`, transform: 'translate(-50%, -50%)', userSelect: 'none' }}
+                    style={{
+                      left: `${sig.placement?.x}%`,
+                      top: `${sig.placement?.y}%`,
+                      width: sig.type === 'text' || sig.type === 'date' ? undefined : `${sig.placement?.width ?? DEFAULT_STAMP_WIDTH}%`,
+                      transform: 'translate(-50%, -50%)',
+                      userSelect: 'none',
+                    }}
                     onMouseDown={e => {
                       e.preventDefault();
-                      // If it's empty, open signature pad for THIS specific index
+                      // Empty box: pick a stamp for THIS specific box. Filled box: allow moving it.
+                      setDraggingSignatureIdx(idx);
                       if (!sig.value) {
-                        setDraggingSignatureIdx(idx); // Track which one we are signing
-                        setShowSignaturePad(true);
-                      } else {
-                        // If already signed, maybe allow moving? or re-signing?
-                        // For now allow move
-                        setDraggingSignatureIdx(idx);
+                        setStampTargetIdx(idx);
+                        setShowSavedSignatures(true);
                       }
                     }}
                   >
                     {sig.type === 'text' || sig.type === 'date' ? (
                       <div className="text-emerald-900 font-bold whitespace-nowrap text-lg" style={sig.style}>{sig.value}</div>
                     ) : sig.value ? (
-                      <img src={sig.value} alt="Signature" className="pointer-events-none select-none" style={{ height: '64px', filter: 'none', fontWeight: 700 }} />
+                      <>
+                        <img src={sig.value} alt={t("candidates.sign.stamp")} className="pointer-events-none select-none w-full h-auto block" />
+                        <div
+                          className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
+                          title={t("candidates.sign.resize")}
+                          onMouseDown={e => startResize(e, idx)}
+                        />
+                      </>
                     ) : (
                       <div className="flex flex-col items-center justify-center">
                         <div className="text-emerald-600 font-bold whitespace-nowrap text-xs uppercase tracking-wider mb-1">
-                          {sig.field_name === 'initials' ? 'Initials' : 'Signature'}
+                          {sig.field_name === 'initials' ? t("candidates.sign.initials") : t("candidates.sign.stamp")}
                         </div>
-                        <div className="text-[10px] text-emerald-500/70">Click to Sign</div>
+                        <div className="text-[10px] text-emerald-500/70">{t("candidates.sign.click_to_stamp")}</div>
                       </div>
                     )}
                   </div>
@@ -607,7 +609,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           <div className="hidden lg:block col-span-1 border-l bg-background p-4 shadow-xl z-20">
             {contracts.length > 1 && (
               <div className="mb-6 border-b pb-6">
-                <div className="text-xs font-semibold text-muted-foreground mb-3">Contracts</div>
+                <div className="text-xs font-semibold text-muted-foreground mb-3">{t("candidates.sign.contracts")}</div>
                 <div className="flex flex-col gap-2">
                   {contracts.map(c => (
                     <div
@@ -628,7 +630,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
                       </div>
                       <div className="flex justify-between items-center">
                         <span className={`text-[10px] uppercase font-bold ${c.status === 'signed' ? 'text-emerald-600' : 'text-yellow-600'}`}>
-                          {c.status === 'pending' ? t("candidates.sign.status_pending") || 'Pending' : t("candidates.sign.status_signed") || 'Signed'}
+                          {c.status === 'pending' ? t("candidates.sign.status_pending") : t("candidates.sign.status_signed")}
                         </span>
                       </div>
                     </div>
@@ -637,36 +639,27 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
               </div>
             )}
 
-            <div className="font-bold text-xs text-muted-foreground mb-4 tracking-wider">{t("candidates.sign.fields")}</div>
+            <div className="font-bold text-xs text-muted-foreground mb-4 tracking-wider">{t("candidates.sign.saved_signatures")}</div>
 
-            {savedSignatures.length > 0 && (
-              <div className="mb-6">
-                <div className="text-xs font-semibold text-muted-foreground mb-2">{t("candidates.sign.saved_signatures")}</div>
-                <Button variant="outline" className="w-full mb-2" onClick={() => setShowSavedSignatures(true)}>
-                  <PenLine className="mr-2 h-4 w-4" />
-                  <p className="text-xs">{t("candidates.sign.use_saved")} </p>
-                </Button>
-              </div>
-            )}
-
-            {FIELD_TYPES.map((group, i) => (
-              <div key={i} className="mb-6">
-                {group.fields.map(field => (
-                  <div
-                    key={field.type}
-                    className="flex items-center gap-3 px-3 py-3 rounded-lg border bg-card hover:bg-accent/50 cursor-grab select-none transition-all shadow-sm hover:shadow-md mb-2"
-                    onClick={() => { if (field.type === "signature") setShowSignaturePad(true) }}
-                    draggable
-                    onDragStart={() => setDraggingField(field.type)}
+            {savedSignatures.length === 0 ? (
+              <p className="text-sm text-muted-foreground mb-6">
+                {t("candidates.sign.no_stamps")}{" "}
+                <Link href="/dashboard/signatures" className="underline">{t("candidates.sign.manage_stamps")}</Link>
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 mb-6">
+                {savedSignatures.map((sig: any) => (
+                  <button
+                    key={sig.id}
+                    type="button"
+                    className="border rounded-lg p-2 bg-card hover:border-primary hover:bg-accent transition-colors shadow-sm"
+                    onClick={() => handleAddSavedSignature(sig.value)}
                   >
-                    <div className="p-2 bg-primary/10 text-primary rounded-md">
-                      {field.icon}
-                    </div>
-                    <span className="text-sm font-medium">{field.label}</span>
-                  </div>
+                    <img src={sig.value} alt={t("candidates.sign.stamp")} className="w-full h-16 object-contain bg-white rounded" />
+                  </button>
                 ))}
               </div>
-            ))}
+            )}
 
             <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-800 dark:text-blue-300">
               <p className="font-semibold mb-1">{t("candidates.sign.instructions_title")}</p>
@@ -676,39 +669,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
         )}
       </div>
 
-      {showSignaturePad && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-card rounded-xl shadow-2xl p-6 relative w-full max-w-lg mx-4 border">
-            <button className="absolute top-4 right-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" onClick={() => setShowSignaturePad(false)}>&times;</button>
-            <div className="mb-4">
-              <h2 className="text-xl font-bold">Create Signature</h2>
-              <p className="text-muted-foreground text-sm">Draw or type your signature below</p>
-            </div>
-            <SignaturePad onSignatureCreate={(type, value) => {
-              setSignatures(prev => {
-                // If we are "dragging/editing" a specific signature (clicked on empty box), update THAT one
-                if (draggingSignatureIdx !== null && prev[draggingSignatureIdx]) {
-                  return prev.map((s, i) => i === draggingSignatureIdx ? { ...s, type, value } : s);
-                }
-
-                // Fallback: If generic, find first empty one? Or just add new?
-                // Logic: If there are empty placeholders, fill the first compatible one
-                const firstEmptyIdx = prev.findIndex(s => s.value === "");
-                if (firstEmptyIdx !== -1) {
-                  return prev.map((s, i) => i === firstEmptyIdx ? { ...s, type, value } : s);
-                }
-
-                // Else add new (freehand placement)
-                return [...prev, { type, value, placement: { x: 50, y: 50, page: currentPage } }]
-              })
-              setShowSignaturePad(false)
-              setDraggingSignatureIdx(null) // Clear selection
-            }} />
-          </div>
-        </div>
-      )}
-
-      <Dialog open={showSavedSignatures} onOpenChange={setShowSavedSignatures}>
+      <Dialog open={showSavedSignatures} onOpenChange={(o) => { setShowSavedSignatures(o); if (!o) setStampTargetIdx(null) }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{t("candidates.sign.modal.select_saved")}</DialogTitle>
@@ -717,7 +678,7 @@ export default function SignCandidateContractPage({ params }: { params: Promise<
           <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto p-1">
             {savedSignatures.map((sig: any) => (
               <div key={sig.id} className="border rounded-lg p-4 cursor-pointer hover:border-primary bg-card hover:bg-accent transition-colors shadow-sm" onClick={() => handleAddSavedSignature(sig.value)}>
-                <img src={sig.value} alt="Signature" className="w-full h-24 object-contain dark:invert" />
+                <img src={sig.value} alt={t("candidates.sign.stamp")} className="w-full h-24 object-contain bg-white rounded" />
               </div>
             ))}
           </div>

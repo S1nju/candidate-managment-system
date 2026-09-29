@@ -143,6 +143,19 @@ class ContractController extends Controller
         return response()->json(['message' => 'Contract rejected successfully', 'candidate' => $candidate]);
     }
 
+    public function regenerate(Candidate $candidate): JsonResponse
+    {
+        if ($candidate->contract_status === 'rejected') {
+            abort(403, 'This contract has been rejected.');
+        }
+
+        $result = $this->generatorService->regenerateForCandidate($candidate);
+
+        return response()->json($result + [
+            'candidate' => $candidate->fresh(['generatedContracts.formContract']),
+        ]);
+    }
+
     public function download($id)
     {
         // Check if it's an ID (numeric) or a path

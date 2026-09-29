@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormBuilder, FormField } from "@/components/forms/form-builder"
+import { ColorPicker } from "@/components/forms/color-picker"
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -23,16 +24,17 @@ export default function NewFormPage() {
     const [description, setDescription] = useState("")
     const [status, setStatus] = useState("draft")
     const [kycEnabled, setKycEnabled] = useState(false)
+    const [color, setColor] = useState("#3b82f6")
     const [fields, setFields] = useState<FormField[]>([])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!title) {
-            toast({ title: "Title is required", variant: "destructive" })
+            toast({ title: t("forms.title_required"), variant: "destructive" })
             return
         }
         if (fields.length === 0) {
-            toast({ title: "At least one field is required", variant: "destructive" })
+            toast({ title: t("forms.fields_required"), variant: "destructive" })
             return
         }
 
@@ -42,15 +44,16 @@ export default function NewFormPage() {
                 title,
                 description,
                 status,
+                color,
                 kyc_enabled: kycEnabled,
                 fields
             })
-            toast({ title: "Form created successfully" })
+            toast({ title: t("forms.create_success") })
             router.push("/dashboard/forms")
         } catch (error: any) {
             toast({
-                title: "Failed to create form",
-                description: error.response?.data?.message || "Something went wrong",
+                title: t("forms.create_failed"),
+                description: error.response?.data?.message || t("common.error"),
                 variant: "destructive"
             })
         } finally {
@@ -74,37 +77,23 @@ export default function NewFormPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-8 bg-card p-8 rounded-lg shadow-sm border">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <Label htmlFor="title">{t("forms.table.title")}</Label>
                             <Input
                                 id="title"
-                                placeholder="..."
+                                placeholder={t("forms.title_placeholder")}
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 className="bg-background"
                             />
                         </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="description">Description (Optional)</Label>
-                            <Textarea
-                                id="description"
-                                placeholder="..."
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="bg-background"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-6 flex flex-col justify-between">
                         <div className="space-y-2">
                             <Label htmlFor="status">{t("forms.table.status")}</Label>
                             <Select value={status} onValueChange={(val) => setStatus(val)}>
                                 <SelectTrigger className="bg-background">
-                                    <SelectValue placeholder="..." />
+                                    <SelectValue placeholder={t("forms.builder.select_status_placeholder")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="draft">{t("forms.status_draft")}</SelectItem>
@@ -113,14 +102,33 @@ export default function NewFormPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                    </div>
 
-                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md border">
-                            <div className="space-y-0.5">
-                                <Label className="text-base font-semibold">Require Identity Verification (KYC)</Label>
-                                <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
-                            </div>
-                            <Switch checked={kycEnabled} onCheckedChange={setKycEnabled} />
+                    <div className="space-y-2">
+                        <Label htmlFor="description">{t("forms.description_label")}</Label>
+                        <Textarea
+                            id="description"
+                            placeholder={t("forms.description_placeholder")}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="bg-background min-h-[88px]"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+
+                        <div className="space-y-2">
+                            <Label>{t("forms.color")}</Label>
+                            <ColorPicker value={color} onChange={setColor} />
                         </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-md border">
+                        <div className="space-y-0.5">
+                            <Label className="text-base font-semibold">{t("forms.kyc_label")}</Label>
+                            <p className="text-sm text-muted-foreground">{t("forms.kyc_desc")}</p>
+                        </div>
+                        <Switch className="shrink-0" checked={kycEnabled} onCheckedChange={setKycEnabled} />
                     </div>
                 </div>
 

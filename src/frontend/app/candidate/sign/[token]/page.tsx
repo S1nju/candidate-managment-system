@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import dynamic from "next/dynamic"
-import { SignaturePad } from "@/components/signing/signature-pad"
+import { HandwrittenSignatureDialog } from "@/components/signing/handwritten-signature-dialog"
+import { useLanguage } from "@/context/language-context"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, AlertCircle, ChevronRight, PenLine, CheckSquare, Download } from "lucide-react"
 import axios from "@/lib/axios"
@@ -15,31 +16,11 @@ const PDFViewer = dynamic(
     { ssr: false }
 )
 
-// A small initials stamp rendered as a canvas data URL
-function makeInitialsStamp(name: string): string {
-    const initials = name
-        .split(" ")
-        .map((w) => w[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 3)
-
-    const canvas = document.createElement("canvas")
-    canvas.width = 120
-    canvas.height = 44
-    const ctx = canvas.getContext("2d")!
-    ctx.fillStyle = "#1d4ed8"
-    ctx.font = "bold 20px serif"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-    ctx.fillText(initials, 60, 22)
-    return canvas.toDataURL("image/jpeg", 0.92)
-}
-
 export default function PublicSignContractPage() {
     const params = useParams()
     const token = params?.token as string
     const { toast } = useToast()
+    const { t } = useLanguage()
 
     const [loading, setLoading] = useState(true)
     const [candidateName, setCandidateName] = useState("")
@@ -59,13 +40,9 @@ export default function PublicSignContractPage() {
         type: "drawn" | "typed" | "text",
         value: string,
         placeholder_name?: string,
-        placement: { x: number, y: number, page: number }
-    }>>([])
-
-    // Initials stamps added per page approval (bottom-left and bottom-right)
-    const [initialsStamps, setInitialsStamps] = useState<Array<{
-        value: string,
-        placement: { x: number, y: number, page: number }
+        field_name?: string,
+        label?: string | null,
+        placement: { x: number, y: number, page: number, width?: number, height?: number }
     }>>([])
 
     // Signature modal for the final sign step
@@ -95,8 +72,8 @@ export default function PublicSignContractPage() {
                 }
             } catch (error: any) {
                 toast({
-                    title: "Error",
-                    description: error.response?.data?.message || "Invalid or expired link.",
+                    title: t("public_sign.toasts.error"),
+                    description: error.response?.data?.message || t("public_sign.invalid_link"),
                     variant: "destructive"
                 })
             } finally {
@@ -120,7 +97,6 @@ export default function PublicSignContractPage() {
 
         // Reset per-page state when switching contracts
         setApprovedPages(new Set())
-        setInitialsStamps([])
         setCurrentPage(1)
         setNumPages(0)
 
@@ -130,34 +106,26 @@ export default function PublicSignContractPage() {
                 if (!p.position) return false
                 if (p.source === 'static_signature') return false
                 // Only show candidate-facing signature boxes
-                if (p.field_name === 'signature' || p.field_name === 'initials') return true
+                if (p.field_name === 'signature' || p.field_name === 'initials' || p.field_name === 'text_input') return true
                 return false
             })
 
             setSignatures(sigPlaceholders.map((p: any) => ({
-                type: "drawn",
+                type: p.field_name === 'text_input' ? "text" : "drawn",
                 value: "",
                 placeholder_name: p.placeholder,
-                placement: { x: p.position.x, y: p.position.y, page: p.position.page }
+                field_name: p.field_name,
+                label: p.label,
+                placement: { x: p.position.x, y: p.position.y, page: p.position.page, width: p.position.width, height: p.position.height }
             })))
         } else {
             setSignatures([])
         }
     }, [activeContractId, contracts, token])
 
-    // Handle "Read & Approve" click — stamps initials on bottom-left and bottom-right of current page
+    // Handle "Read & Approve" click — marks the current page as read, no stamping
     const handleReadAndApprove = useCallback(() => {
         if (approvedPages.has(currentPage)) return
-
-        const stamp = makeInitialsStamp(candidateName || "?")
-
-        setInitialsStamps(prev => [
-            ...prev,
-            // Bottom-left
-            { value: stamp, placement: { x: 8, y: 94, page: currentPage } },
-            // Bottom-right
-            { value: stamp, placement: { x: 92, y: 94, page: currentPage } },
-        ])
 
         setApprovedPages(prev => new Set([...prev, currentPage]))
 
@@ -167,7 +135,7 @@ export default function PublicSignContractPage() {
             // We need to trigger a page change. We'll use a ref-based approach via a custom event.
             window.dispatchEvent(new CustomEvent("pdf-next-page"))
         }
-    }, [approvedPages, currentPage, numPages, candidateName])
+    }, [approvedPages, currentPage, numPages])
 
     const allPagesApproved = numPages > 0 && approvedPages.size >= numPages
     const isLastPage = currentPage === numPages && numPages > 0
@@ -175,28 +143,19 @@ export default function PublicSignContractPage() {
     // Final submit — sends all initials stamps + signature placeholders
     const handleSubmit = async () => {
         // Check all layout signature placeholders are filled
-        const unfilled = signatures.filter(s => !s.value)
+        const unfilled = signatures.filter(s => !s.value.trim())
         if (unfilled.length > 0) {
-            toast({ title: "Incomplete", description: "Please sign all signature fields.", variant: "destructive" })
+            toast({ title: t("public_sign.toasts.incomplete"), description: t("public_sign.toasts.incomplete_desc"), variant: "destructive" })
             return
         }
 
         setIsSaving(true)
         try {
-            const allSigs = [
-                // Initials stamps from page approvals
-                ...initialsStamps.map(s => ({
-                    type: "image",
-                    value: s.value,
-                    placement: s.placement,
-                })),
-                // Layout signature placeholders
-                ...signatures.map(s => ({
-                    type: s.type === "typed" ? "text" : "image",
-                    value: s.value,
-                    placement: s.placement,
-                })),
-            ]
+            const allSigs = signatures.map(s => ({
+                type: s.type === "typed" || s.type === "text" ? "text" : "image",
+                value: s.type === "text" ? s.value.trim() : s.value,
+                placement: s.placement,
+            }))
 
             await axios.post(`/api/public/candidate/${token}/sign`, {
                 signatures: allSigs,
@@ -209,10 +168,10 @@ export default function PublicSignContractPage() {
                 }
             })
 
-            toast({ title: "Success", description: "Contract signed successfully!" })
+            toast({ title: t("public_sign.toasts.success"), description: t("public_sign.toasts.signed") })
             window.location.reload()
         } catch (error: any) {
-            toast({ title: "Error", description: error.response?.data?.message || "Failed to sign.", variant: "destructive" })
+            toast({ title: t("public_sign.toasts.error"), description: error.response?.data?.message || t("public_sign.toasts.sign_failed"), variant: "destructive" })
         } finally {
             setIsSaving(false)
         }
@@ -223,7 +182,7 @@ export default function PublicSignContractPage() {
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center space-y-3">
                     <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="text-muted-foreground text-sm">Loading your contract...</p>
+                    <p className="text-muted-foreground text-sm">{t("public_sign.loading")}</p>
                 </div>
             </div>
         )
@@ -231,11 +190,7 @@ export default function PublicSignContractPage() {
 
     const activeContract = contracts.find(c => c.id === activeContractId)
 
-    // Combine layout signatures + initials stamps for overlay
-    const allOverlays = [
-        ...initialsStamps.map(s => ({ ...s, isInitials: true })),
-        ...signatures.map(s => ({ ...s, isInitials: false })),
-    ]
+    const allOverlays = signatures
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -246,7 +201,7 @@ export default function PublicSignContractPage() {
                         <PenLine className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-lg font-bold text-gray-900">Contract Signing</h1>
+                        <h1 className="text-lg font-bold text-gray-900">{t("public_sign.title")}</h1>
                         <p className="text-sm text-muted-foreground">{candidateName}</p>
                     </div>
                 </div>
@@ -255,7 +210,7 @@ export default function PublicSignContractPage() {
                 {!isCurrentSigned && !isFullySigned && numPages > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="font-medium text-gray-700">{approvedPages.size} / {numPages}</span>
-                        <span>pages approved</span>
+                        <span>{t("public_sign.pages_approved")}</span>
                     </div>
                 )}
             </header>
@@ -266,7 +221,7 @@ export default function PublicSignContractPage() {
                     {/* Contract list */}
                     {contracts.length > 1 && (
                         <div className="bg-white rounded-xl shadow-sm border p-4">
-                            <h3 className="font-semibold text-xs text-muted-foreground mb-3 uppercase tracking-wider">Documents</h3>
+                            <h3 className="font-semibold text-xs text-muted-foreground mb-3 uppercase tracking-wider">{t("public_sign.documents")}</h3>
                             <div className="space-y-2">
                                 {contracts.map(c => (
                                     <div
@@ -290,13 +245,13 @@ export default function PublicSignContractPage() {
                         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800">
                             <p className="font-semibold mb-2 flex items-center gap-2">
                                 <AlertCircle className="h-4 w-4" />
-                                How to sign
+                                {t("public_sign.how_to")}
                             </p>
                             <ol className="space-y-1 list-decimal list-inside text-xs leading-relaxed">
-                                <li>Read each page carefully</li>
-                                <li>Click <strong>"Read & Approve"</strong> on each page</li>
-                                <li>Your initials will be stamped on each approved page</li>
-                                <li>On the last page, click <strong>"Sign"</strong> to finalize</li>
+                                <li>{t("public_sign.step1")}</li>
+                                <li>{t("public_sign.step2")}</li>
+                                <li>{t("public_sign.step3")}</li>
+                                <li>{t("public_sign.step4")}</li>
                             </ol>
                         </div>
                     )}
@@ -304,7 +259,7 @@ export default function PublicSignContractPage() {
                     {/* Page approval progress */}
                     {!isCurrentSigned && !isFullySigned && numPages > 0 && (
                         <div className="bg-white rounded-xl border p-4 space-y-2">
-                            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Pages</h3>
+                            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">{t("public_sign.pages")}</h3>
                             <div className="grid grid-cols-5 gap-1">
                                 {Array.from({ length: numPages }, (_, i) => i + 1).map(page => (
                                     <div
@@ -328,13 +283,10 @@ export default function PublicSignContractPage() {
                         <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-sm text-emerald-800">
                             <p className="font-semibold mb-1 flex items-center gap-2">
                                 <CheckCircle className="h-4 w-4" />
-                                {isFullySigned ? "All Signed!" : "Document Signed"}
+                                {isFullySigned ? t("public_sign.all_signed") : t("public_sign.doc_signed")}
                             </p>
                             <p className="text-xs">
-                                {isFullySigned
-                                    ? "You have signed all required documents. The administration will review them shortly."
-                                    : "You have signed this document successfully."
-                                }
+                                {isFullySigned ? t("public_sign.all_signed_desc") : t("public_sign.doc_signed_desc")}
                             </p>
                         </div>
                     )}
@@ -348,48 +300,68 @@ export default function PublicSignContractPage() {
                             onPageChange={setCurrentPage}
                             onNumPagesChange={setNumPages}
                         >
-                            {/* Render initials stamps and signature placeholders */}
+                            {/* Render signature/initials placeholders */}
                             {allOverlays.map((overlay, idx) => (
-                                overlay.placement?.page === currentPage && (
+                                overlay.placement?.page === currentPage && overlay.type === "text" ? (
                                     <div
                                         key={idx}
-                                        className={overlay.isInitials
-                                            ? "absolute pointer-events-none"
-                                            : "absolute border-2 border-primary border-dashed bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center justify-center transition-all p-1"
-                                        }
+                                        className="absolute z-10 border-2 border-primary border-dashed bg-primary/10 flex items-center"
                                         style={{
                                             left: `${overlay.placement.x}%`,
                                             top: `${overlay.placement.y}%`,
                                             transform: 'translate(-50%, -50%)',
-                                            width: overlay.isInitials ? '80px' : '180px',
-                                            height: overlay.isInitials ? '36px' : '80px',
+                                            width: `${overlay.placement.width ?? 30}%`,
+                                            height: `${overlay.placement.height ?? 4}%`,
+                                            minHeight: '28px',
+                                        }}
+                                    >
+                                        <input
+                                            type="text"
+                                            value={overlay.value}
+                                            maxLength={200}
+                                            placeholder={overlay.label || t("public_sign.type_here")}
+                                            onChange={e => {
+                                                const value = e.target.value
+                                                setSignatures(prev => prev.map((s, i) => i === idx ? { ...s, value } : s))
+                                            }}
+                                            className="w-full h-full bg-transparent px-2 text-sm font-semibold text-black placeholder:text-primary/70 placeholder:font-medium outline-none"
+                                        />
+                                    </div>
+                                ) : overlay.placement?.page === currentPage && (
+                                    <div
+                                        key={idx}
+                                        className="absolute border-2 border-primary border-dashed bg-primary/10 hover:bg-primary/20 cursor-pointer flex items-center justify-center transition-all p-1"
+                                        style={{
+                                            left: `${overlay.placement.x}%`,
+                                            top: `${overlay.placement.y}%`,
+                                            transform: 'translate(-50%, -50%)',
+                                            width: '180px',
+                                            height: '80px',
                                             zIndex: 10
                                         }}
-                                        onClick={!overlay.isInitials ? () => {
-                                            const sigIdx = signatures.findIndex(
-                                                s => s.placement.x === overlay.placement.x && s.placement.y === overlay.placement.y && s.placement.page === overlay.placement.page
-                                            )
-                                            if (sigIdx >= 0) {
-                                                setSigningSignatureIdx(sigIdx)
-                                                setShowSignaturePad(true)
-                                            }
-                                        } : undefined}
+                                        onClick={() => {
+                                            setSigningSignatureIdx(idx)
+                                            setShowSignaturePad(true)
+                                        }}
+                                        title={overlay.field_name === 'initials' ? t("public_sign.initial_here") : t("public_sign.sign_here")}
                                     >
                                         {overlay.value ? (
-                                            <img src={overlay.value} alt="Signature" className="max-h-full max-w-full object-contain" />
-                                        ) : !overlay.isInitials ? (
+                                            <img src={overlay.value} alt={t("public_sign.signature")} className="max-h-full max-w-full object-contain" />
+                                        ) : (
                                             <div className="text-center">
-                                                <div className="text-primary font-bold text-xs uppercase">Sign Here</div>
+                                                <div className="text-primary font-bold text-xs uppercase">
+                                                    {overlay.field_name === 'initials' ? t("public_sign.initial_here") : t("public_sign.sign_here")}
+                                                </div>
                                                 <PenLine className="h-4 w-4 text-primary mx-auto mt-1 opacity-50" />
                                             </div>
-                                        ) : null}
+                                        )}
                                     </div>
                                 )
                             ))}
                         </PDFViewer>
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                            Select a document
+                            {t("public_sign.select_doc")}
                         </div>
                     )}
 
@@ -397,7 +369,7 @@ export default function PublicSignContractPage() {
                     {!isCurrentSigned && !isFullySigned && numPages > 0 && (
                         <div className="border-t bg-gray-50 px-6 py-4 flex items-center justify-between">
                             <p className="text-sm text-muted-foreground">
-                                Page <span className="font-semibold text-gray-800">{currentPage}</span> of <span className="font-semibold text-gray-800">{numPages}</span>
+                                {t("common.page_of").replace("{page}", String(currentPage)).replace("{total}", String(numPages))}
                             </p>
 
                             <div className="flex gap-3">
@@ -409,7 +381,7 @@ export default function PublicSignContractPage() {
                                         className="bg-emerald-600 hover:bg-emerald-700 gap-2 px-6"
                                     >
                                         <PenLine className="h-4 w-4" />
-                                        {isSaving ? "Signing..." : "Sign Contract"}
+                                        {isSaving ? t("public_sign.signing") : t("public_sign.sign_contract")}
                                     </Button>
                                 ) : (
                                     // Not last page or not all approved → Read & Approve
@@ -417,17 +389,17 @@ export default function PublicSignContractPage() {
                                         onClick={handleReadAndApprove}
                                         disabled={approvedPages.has(currentPage)}
                                         variant={approvedPages.has(currentPage) ? "outline" : "default"}
-                                        className={`gap-2 px-6 ${!approvedPages.has(currentPage) ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                        className={`gap-2 px-6 ${!approvedPages.has(currentPage) ? '!bg-yellow-400 !text-black hover:!bg-yellow-500' : ''}`}
                                     >
                                         {approvedPages.has(currentPage) ? (
                                             <>
                                                 <CheckCircle className="h-4 w-4 text-emerald-500" />
-                                                Approved
+                                                {t("public_sign.approved")}
                                             </>
                                         ) : (
                                             <>
                                                 <ChevronRight className="h-4 w-4" />
-                                                Read & Approve
+                                                {t("public_sign.read_approve")}
                                             </>
                                         )}
                                     </Button>
@@ -438,38 +410,31 @@ export default function PublicSignContractPage() {
                 </div>
             </main>
 
-            {/* Signature Pad Modal */}
-            {showSignaturePad && (
-                <div className="fixed inset-0 z-[50] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg relative animate-in fade-in zoom-in duration-200">
-                        <button
-                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-900"
-                            onClick={() => {
-                                setShowSignaturePad(false)
-                                setSigningSignatureIdx(null)
-                            }}
-                        >
-                            ✕
-                        </button>
-                        <div className="mb-6">
-                            <h2 className="text-xl font-bold">Draw Your Signature</h2>
-                            <p className="text-sm text-gray-500">Sign below to complete the document.</p>
-                        </div>
-
-                        <SignaturePad
-                            onSignatureCreate={(type, value) => {
-                                if (signingSignatureIdx !== null) {
-                                    setSignatures(prev => prev.map((s, i) =>
-                                        i === signingSignatureIdx ? { ...s, type, value } : s
-                                    ))
-                                }
-                                setShowSignaturePad(false)
-                                setSigningSignatureIdx(null)
-                            }}
-                        />
-                    </div>
-                </div>
-            )}
+            {/* Handwritten signature / initials popin */}
+            <HandwrittenSignatureDialog
+                open={showSignaturePad}
+                mode={signingSignatureIdx !== null && signatures[signingSignatureIdx]?.field_name === "initials" ? "initials" : "signature"}
+                defaultText={candidateName}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setShowSignaturePad(false)
+                        setSigningSignatureIdx(null)
+                    }
+                }}
+                onConfirm={(dataUrl) => {
+                    if (signingSignatureIdx !== null) {
+                        const fieldName = signatures[signingSignatureIdx]?.field_name
+                        // Remembered: reuse on every other empty zone of the same kind (signature / initials)
+                        setSignatures(prev => prev.map((s, i) =>
+                            i === signingSignatureIdx || (s.field_name === fieldName && !s.value)
+                                ? { ...s, type: "drawn", value: dataUrl }
+                                : s
+                        ))
+                    }
+                    setShowSignaturePad(false)
+                    setSigningSignatureIdx(null)
+                }}
+            />
         </div>
     )
 }

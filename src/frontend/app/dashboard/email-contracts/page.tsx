@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import axios from "@/lib/axios"
+import { format } from "date-fns"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -12,10 +13,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, FileText, Mail, Trash2 } from "lucide-react"
+import { useLanguage } from "@/context/language-context"
+import { getCandidateDisplayName } from "@/lib/candidate-name"
 
 export default function EmailContractsPage() {
   useAuth({ middleware: "auth" })
   const { toast } = useToast()
+  const { t } = useLanguage()
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -40,7 +44,7 @@ export default function EmailContractsPage() {
 
   const handleSend = async () => {
     if (!name || !email || !contractId) {
-      toast({ title: "Missing fields", description: "Name, email and contract template are required.", variant: "destructive" })
+      toast({ title: t("email_contracts.toasts.missing_fields"), description: t("email_contracts.toasts.missing_fields_desc"), variant: "destructive" })
       return
     }
 
@@ -52,15 +56,15 @@ export default function EmailContractsPage() {
         contract_id: Number(contractId),
       })
 
-      toast({ title: "Invite sent", description: "Contract signing link was sent by email." })
+      toast({ title: t("email_contracts.toasts.invite_sent"), description: t("email_contracts.toasts.invite_sent_desc") })
       setName("")
       setEmail("")
       setContractId("")
       mutateCandidates()
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error?.response?.data?.message || "Failed to send invite",
+        title: t("email_contracts.toasts.error"),
+        description: error?.response?.data?.message || t("email_contracts.toasts.send_failed"),
         variant: "destructive",
       })
     } finally {
@@ -69,15 +73,15 @@ export default function EmailContractsPage() {
   }
 
   const handleDeleteContract = async (id: number) => {
-    if (confirm("Are you sure you want to delete this email contract template?")) {
+    if (confirm(t("email_contracts.confirm_delete"))) {
       try {
         await axios.delete(`/api/email-contracts/${id}`)
-        toast({ title: "Contract template deleted" })
+        toast({ title: t("email_contracts.toasts.deleted") })
         mutateContracts()
       } catch (error: any) {
         toast({
-          title: "Error",
-          description: error?.response?.data?.message || "Failed to delete contract",
+          title: t("email_contracts.toasts.error"),
+          description: error?.response?.data?.message || t("email_contracts.toasts.delete_failed"),
           variant: "destructive",
         })
       }
@@ -88,13 +92,13 @@ export default function EmailContractsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Email Contracts</h1>
-          <p className="text-muted-foreground">Create and send contract templates directly via email.</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("email_contracts.title")}</h1>
+          <p className="text-muted-foreground">{t("email_contracts.subtitle")}</p>
         </div>
         <Link href="/dashboard/email-contracts/new">
           <Button className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
-            Create New Contract
+            {t("email_contracts.create_new")}
           </Button>
         </Link>
       </div>
@@ -123,18 +127,18 @@ export default function EmailContractsPage() {
             <CardContent className="space-y-4">
               <div className="text-sm space-y-2">
                 <p>
-                  <span className="text-muted-foreground font-medium">Fields:</span>{" "}
+                  <span className="text-muted-foreground font-medium">{t("email_contracts.fields_label")}</span>{" "}
                   {contract.fields_count || 0}
                 </p>
                 <p>
-                  <span className="text-muted-foreground font-medium">Sent:</span>{" "}
+                  <span className="text-muted-foreground font-medium">{t("email_contracts.sent_label")}</span>{" "}
                   {contract.sent_count || 0}
                 </p>
               </div>
               <Link href={`/dashboard/email-contracts/${contract.id}/send`} className="block">
                 <Button className="w-full" variant="outline">
                   <Mail className="h-4 w-4 mr-2" />
-                  Send Invite
+                  {t("email_contracts.send_invite")}
                 </Button>
               </Link>
             </CardContent>
@@ -146,9 +150,9 @@ export default function EmailContractsPage() {
         <Card>
           <CardContent className="p-12 text-center">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <p className="text-muted-foreground mb-4">No email contract templates yet.</p>
+            <p className="text-muted-foreground mb-4">{t("email_contracts.empty")}</p>
             <Link href="/dashboard/email-contracts/new">
-              <Button>Create Your First Contract</Button>
+              <Button>{t("email_contracts.create_first")}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -157,23 +161,23 @@ export default function EmailContractsPage() {
       {/* Send Invite Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Send Contract Invite</CardTitle>
-          <CardDescription>Choose a template and send a signing link to a recipient.</CardDescription>
+          <CardTitle>{t("email_contracts.send_section_title")}</CardTitle>
+          <CardDescription>{t("email_contracts.send_section_desc")}</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
-            <Label>Recipient Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" />
+            <Label>{t("email_contracts.recipient_name")}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("signatures.name_placeholder")} />
           </div>
           <div className="space-y-2">
-            <Label>Email Address</Label>
+            <Label>{t("email_contracts.email_address")}</Label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="john@example.com" type="email" />
           </div>
           <div className="space-y-2">
-            <Label>Contract Template</Label>
+            <Label>{t("email_contracts.contract_template")}</Label>
             <Select value={contractId} onValueChange={setContractId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select template" />
+                <SelectValue placeholder={t("email_contracts.select_template")} />
               </SelectTrigger>
               <SelectContent>
                 {contracts.map((contract: any) => (
@@ -186,7 +190,7 @@ export default function EmailContractsPage() {
           </div>
           <div className="flex items-end">
             <Button className="w-full" onClick={handleSend} disabled={submitting}>
-              {submitting ? "Sending..." : "Send"}
+              {submitting ? t("email_contracts.sending") : t("email_contracts.send")}
             </Button>
           </div>
         </CardContent>
@@ -195,21 +199,21 @@ export default function EmailContractsPage() {
       {/* Sent Invites */}
       <Card>
         <CardHeader>
-          <CardTitle>Sent Invites</CardTitle>
-          <CardDescription>Recipients created through email contract templates.</CardDescription>
+          <CardTitle>{t("email_contracts.sent_invites_title")}</CardTitle>
+          <CardDescription>{t("email_contracts.sent_invites_desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {candidates.length === 0 && <p className="text-sm text-muted-foreground">No invites sent yet.</p>}
+            {candidates.length === 0 && <p className="text-sm text-muted-foreground">{t("email_contracts.no_invites")}</p>}
             {candidates.map((candidate: any) => (
               <div key={candidate.id} className="border rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                 <div>
-                  <p className="font-medium">{candidate.name}</p>
+                  <p className="font-medium">{getCandidateDisplayName(candidate)}</p>
                   <p className="text-sm text-muted-foreground">{candidate.email}</p>
-                  <p className="text-xs text-muted-foreground">Status: <span className="font-semibold">{candidate.contract_status}</span></p>
+                  <p className="text-xs text-muted-foreground">{t("email_contracts.status_label")} <span className="font-semibold">{candidate.contract_status}</span></p>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Sent: {candidate.sent_for_signature_at ? new Date(candidate.sent_for_signature_at).toLocaleString() : "-"}
+                  {t("email_contracts.sent_label")} {candidate.sent_for_signature_at ? format(new Date(candidate.sent_for_signature_at), 'dd-MM-yyyy HH:mm') : "-"}
                 </div>
               </div>
             ))}

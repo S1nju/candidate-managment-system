@@ -4,26 +4,43 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronRight, Home } from "lucide-react"
 import { Fragment } from "react"
+import { getCandidateDisplayName } from "@/lib/candidate-name"
+import useSWR from "swr"
+import { useLanguage } from "@/context/language-context"
 
-const routeMap: Record<string, string> = {
-    dashboard: "Dashboard",
-    candidates: "Candidates",
-    forms: "Forms",
-    signatures: "Signatures",
-    users: "Users",
-    audit: "Audit",
-    "audit-logs": "Audit Logs",
-    profile: "Profile",
-    settings: "Settings",
-    security: "Security",
-    analytics: "Analytics",
-    sign: "Sign Contract",
-    edit: "Edit"
+const routeKeyMap: Record<string, string> = {
+    dashboard: "breadcrumbs.dashboard",
+    candidates: "breadcrumbs.candidates",
+    forms: "breadcrumbs.forms",
+    library: "breadcrumbs.library",
+    "email-contracts": "breadcrumbs.email_contracts",
+    signatures: "breadcrumbs.signatures",
+    users: "breadcrumbs.users",
+    audit: "breadcrumbs.audit",
+    "audit-logs": "breadcrumbs.audit_logs",
+    profile: "breadcrumbs.profile",
+    settings: "breadcrumbs.settings",
+    security: "breadcrumbs.security",
+    analytics: "breadcrumbs.analytics",
+    sign: "breadcrumbs.sign",
+    edit: "breadcrumbs.edit",
 }
 
 export function DashboardBreadcrumbs() {
     const pathname = usePathname()
+    const { t } = useLanguage()
     const paths = pathname.split("/").filter(Boolean)
+
+    // Detail routes: show the entity name instead of its numeric id (shares SWR cache with the pages)
+    const entityFields: Record<string, string> = { candidates: "name", forms: "title" }
+    const entityIdx = paths.findIndex((p, i) => p in entityFields && /^\d+$/.test(paths[i + 1] ?? ""))
+    const entityId = entityIdx !== -1 ? paths[entityIdx + 1] : null
+    const { data: entity } = useSWR(entityId ? `/api/${paths[entityIdx]}/${entityId}` : null)
+    const entityName: string = !entityId
+        ? ""
+        : paths[entityIdx] === "candidates"
+            ? getCandidateDisplayName(entity)
+            : (entity?.[entityFields[paths[entityIdx]]] ?? "")
 
     return (
         <nav className="flex items-center text-xs text-muted-foreground gap-2">
@@ -42,20 +59,23 @@ export function DashboardBreadcrumbs() {
                 const isLast = index === paths.length - 1
 
                 // Try to get a readable label, otherwise capitalize the path fragment
-                // If it's a numeric ID (like candidate ID), we might just show "Detail" or "Item" 
+                // If it's a numeric ID (like candidate ID), we might just show "Detail" or "Item"
                 // unless we want to do something more complex.
-                let label = routeMap[path] || path.charAt(0).toUpperCase() + path.slice(1)
+                const routeKey = routeKeyMap[path]
+                let label = routeKey ? t(routeKey) : path.charAt(0).toUpperCase() + path.slice(1)
 
                 // Handle potential IDs (simple check for now)
-                if (!routeMap[path] && path.length > 10 && !isNaN(Number(path.charAt(0)))) {
-                    label = "Detail"
+                if (entityId && index === entityIdx + 1) {
+                    label = entityName || t("breadcrumbs.detail")
+                } else if (!routeKey && path.length > 10 && !isNaN(Number(path.charAt(0)))) {
+                    label = t("breadcrumbs.detail")
                 }
 
                 return (
                     <Fragment key={href}>
                         <ChevronRight className="w-3 h-3 opacity-50" />
                         {isLast ? (
-                            <span className="font-semibold text-slate-900 truncate max-w-[150px]">
+                            <span className="font-semibold text-foreground truncate max-w-[220px]">
                                 {label}
                             </span>
                         ) : (

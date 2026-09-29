@@ -10,12 +10,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormBuilder, FormField } from "@/components/forms/form-builder"
+import { ColorPicker } from "@/components/forms/color-picker"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout, Upload, Paperclip } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Trash2, FileText, Layout, Eye } from "lucide-react"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormContractManager } from "@/components/forms/form-contract-manager"
 import { useLanguage } from "@/context/language-context"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 export default function EditFormPage() {
     const { t } = useLanguage()
@@ -28,11 +30,13 @@ export default function EditFormPage() {
     const [description, setDescription] = useState("")
     const [status, setStatus] = useState("draft")
     const [kycEnabled, setKycEnabled] = useState(false)
-    const [completionAttachmentPath, setCompletionAttachmentPath] = useState<string | null>(null)
-    const [uploadingCompletionAttachment, setUploadingCompletionAttachment] = useState(false)
+    const [color, setColor] = useState("#3b82f6")
     const [fields, setFields] = useState<FormField[]>([])
+    const [deleting, setDeleting] = useState(false)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
     const { data: roles } = useSWR('/api/admin/roles', url => axios.get(url).then(res => res.data).catch(() => []))
+    const [uuid, setUuid] = useState("")
     const [roleId, setRoleId] = useState<string>("")
 
     useEffect(() => {
@@ -41,14 +45,15 @@ export default function EditFormPage() {
                 const res = await axios.get(`/api/forms/${id}`)
                 const form = res.data
                 setTitle(form.title)
+                setUuid(form.uuid || "")
                 setDescription(form.description || "")
                 setStatus(form.status)
+                setColor(form.color || "#3b82f6")
                 setKycEnabled(form.kyc_enabled)
-                setCompletionAttachmentPath(form.completion_attachment_path || null)
                 setFields(form.fields || [])
                 setRoleId(form.role_id ? String(form.role_id) : "")
             } catch (error) {
-                toast({ title: "Failed to load form", variant: "destructive" })
+                toast({ title: t("forms.load_failed"), variant: "destructive" })
                 router.push("/dashboard/forms")
             } finally {
                 setLoading(false)
@@ -60,7 +65,7 @@ export default function EditFormPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!title) {
-            toast({ title: "Title is required", variant: "destructive" })
+            toast({ title: t("forms.title_required"), variant: "destructive" })
             return
         }
 
@@ -70,16 +75,17 @@ export default function EditFormPage() {
                 title,
                 description,
                 status,
+                color,
                 kyc_enabled: kycEnabled,
                 role_id: (roleId && roleId !== "0") ? roleId : null,
                 fields
             })
-            toast({ title: "Form updated successfully" })
+            toast({ title: t("forms.update_success") })
             router.push("/dashboard/forms")
         } catch (error: any) {
             toast({
-                title: "Failed to update form",
-                description: error.response?.data?.message || "Something went wrong",
+                title: t("forms.update_failed"),
+                description: error.response?.data?.message || t("common.error"),
                 variant: "destructive"
             })
         } finally {
@@ -87,47 +93,17 @@ export default function EditFormPage() {
         }
     }
 
-    const handleCompletionAttachmentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) return
-
-        const payload = new FormData()
-        payload.append("file", file)
-
-        setUploadingCompletionAttachment(true)
-        try {
-            const res = await axios.post(`/api/forms/${id}/completion-attachment`, payload, {
-                headers: { "Content-Type": "multipart/form-data" },
-            })
-
-            const path = res.data?.path || res.data?.form?.completion_attachment_path || null
-            setCompletionAttachmentPath(path)
-            toast({ title: "Completion attachment uploaded" })
-        } catch (error: any) {
-            toast({
-                title: "Failed to upload attachment",
-                description: error.response?.data?.message || "Something went wrong",
-                variant: "destructive",
-            })
-        } finally {
-            setUploadingCompletionAttachment(false)
-            event.target.value = ""
-        }
-    }
-
-    const completionAttachmentUrl = completionAttachmentPath
-        ? `${axios.defaults.baseURL}/storage/${completionAttachmentPath}`
-        : null
-
     const handleDelete = async () => {
-        if (!confirm("Are you sure you want to delete this form?")) return
-
+        setDeleting(true)
         try {
             await axios.delete(`/api/forms/${id}`)
-            toast({ title: "Form deleted" })
+            toast({ title: t("forms.delete_success") })
             router.push("/dashboard/forms")
         } catch (error) {
-            toast({ title: "Failed to delete form", variant: "destructive" })
+            toast({ title: t("forms.delete_failed"), variant: "destructive" })
+        } finally {
+            setDeleting(false)
+            setShowDeleteConfirm(false)
         }
     }
 
@@ -139,13 +115,21 @@ export default function EditFormPage() {
         <div className="max-w-4xl mx-auto space-y-6">
             <Link href="/dashboard/forms" className="flex items-center text-sm text-muted-foreground hover:text-primary">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Forms
+                {t("common.back")}
             </Link>
 
             <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold">{t("forms.edit")}</h1>
                 <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleDelete} className="text-destructive border-destructive hover:bg-destructive/10">
+                    {uuid && (
+                        <Button variant="outline" asChild>
+                            <Link href={`/apply/${uuid}?preview=1`} target="_blank" className="flex items-center gap-2">
+                                <Eye className="h-4 w-4" />
+                                {t("forms.preview")}
+                            </Link>
+                        </Button>
+                    )}
+                    <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="text-destructive border-destructive hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4 mr-2" />
                         {t("common.delete")}
                     </Button>
@@ -170,69 +154,74 @@ export default function EditFormPage() {
 
                 <TabsContent value="fields" className="space-y-6">
                     <form onSubmit={handleSubmit} className="space-y-8 bg-card p-8 rounded-lg shadow-sm border">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="title">Form Title</Label>
+                                    <Label htmlFor="title">{t("forms.table.title")}</Label>
                                     <Input
                                         id="title"
+                                        placeholder={t("forms.title_placeholder")}
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
                                         className="bg-background"
                                     />
                                 </div>
-
                                 <div className="space-y-2">
-                                    <Label htmlFor="description">Description (Optional)</Label>
-                                    <Textarea
-                                        id="description"
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        className="bg-background"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-6 flex flex-col justify-between">
-                                <div className="space-y-2">
-                                    <Label htmlFor="status">Form Status</Label>
+                                    <Label htmlFor="status">{t("forms.table.status")}</Label>
                                     <Select value={status} onValueChange={(val) => setStatus(val)}>
                                         <SelectTrigger className="bg-background">
-                                            <SelectValue placeholder="Select status" />
+                                            <SelectValue placeholder={t("forms.builder.select_status_placeholder")} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="draft">Draft</SelectItem>
-                                            <SelectItem value="active">Active (Visible to public)</SelectItem>
-                                            <SelectItem value="disabled">Disabled</SelectItem>
+                                            <SelectItem value="draft">{t("forms.status_draft")}</SelectItem>
+                                            <SelectItem value="active">{t("forms.status_active")}</SelectItem>
+                                            <SelectItem value="disabled">{t("forms.status_disabled")}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            </div>
 
-                                {roles && roles.length > 0 && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="role">Assign to Role (Organization)</Label>
-                                        <Select value={roleId} onValueChange={setRoleId}>
-                                            <SelectTrigger className="bg-background">
-                                                <SelectValue placeholder="Select a role..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="0">None (Public/Admin only)</SelectItem>
-                                                {roles.map((role: any) => (
-                                                    <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <p className="text-xs text-muted-foreground">Candidates will be visible to users with this role.</p>
-                                    </div>
-                                )}
+                            <div className="space-y-2">
+                                <Label htmlFor="description">{t("forms.description_label")}</Label>
+                                <Textarea
+                                    id="description"
+                                    placeholder={t("forms.description_placeholder")}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    className="bg-background min-h-[88px]"
+                                />
+                            </div>
 
-                                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-md border">
-                                    <div className="space-y-0.5">
-                                        <Label className="text-base">Require Identity Verification (KYC)</Label>
-                                        <p className="text-sm text-muted-foreground">Candidates must complete DIDIT KYC before submitting.</p>
-                                    </div>
-                                    <Switch checked={kycEnabled} onCheckedChange={setKycEnabled} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                        {roles && roles.length > 0 && (
+                            <div className="space-y-2">
+                                <Label htmlFor="role">{t("forms.assign_role_label")}</Label>
+                                <Select value={roleId} onValueChange={setRoleId}>
+                                    <SelectTrigger className="bg-background">
+                                        <SelectValue placeholder={t("forms.assign_role_placeholder")} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="0">{t("forms.assign_role_none")}</SelectItem>
+                                        {roles.map((role: any) => (
+                                            <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">{t("forms.assign_role_desc")}</p>
+                            </div>
+                        )}
+                                <div className="space-y-2">
+                                    <Label>{t("forms.color")}</Label>
+                                    <ColorPicker value={color} onChange={setColor} />
                                 </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-4 p-4 bg-muted/50 rounded-md border">
+                                <div className="space-y-0.5">
+                                    <Label className="text-base font-semibold">{t("forms.kyc_label")}</Label>
+                                    <p className="text-sm text-muted-foreground">{t("forms.kyc_desc")}</p>
+                                </div>
+                                <Switch className="shrink-0" checked={kycEnabled} onCheckedChange={setKycEnabled} />
                             </div>
                         </div>
 
@@ -243,44 +232,26 @@ export default function EditFormPage() {
                 </TabsContent>
 
                 <TabsContent value="contracts" className="bg-card p-8 rounded-lg shadow-sm border">
-                    <div className="space-y-4 mb-8 border rounded-lg p-4 bg-muted/20">
-                        <div className="space-y-1">
-                            <h3 className="text-base font-semibold flex items-center gap-2">
-                                <Paperclip className="h-4 w-4" />
-                                Completion Attachment
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                                This file is sent only after contracts are fully signed.
-                            </p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <Input
-                                id="completion-attachment"
-                                type="file"
-                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                onChange={handleCompletionAttachmentUpload}
-                                disabled={uploadingCompletionAttachment}
-                            />
-                            {uploadingCompletionAttachment && <Loader2 className="h-4 w-4 animate-spin" />}
-                        </div>
-
-                        {completionAttachmentUrl && completionAttachmentPath && (
-                            <a
-                                href={completionAttachmentUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                            >
-                                <Upload className="h-4 w-4 rotate-180" />
-                                Current attachment: {completionAttachmentPath.split("/").pop()}
-                            </a>
-                        )}
-                    </div>
-
                     <FormContractManager formId={id as string} fields={fields} />
                 </TabsContent>
             </Tabs>
+
+            <Dialog open={showDeleteConfirm} onOpenChange={(open) => !deleting && setShowDeleteConfirm(open)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t("forms.delete_confirm_title")}</DialogTitle>
+                        <DialogDescription>{t("forms.delete_confirm_desc")}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+                            {t("common.cancel")}
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                            {t("common.delete")}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

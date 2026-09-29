@@ -6,11 +6,10 @@ use App\Models\User;
 use App\Modules\Audit\Services\AuditService;
 use App\Modules\Candidates\Models\Candidate;
 use App\Modules\Forms\Models\GeneratedContract;
+use App\Services\SignatureSecurityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\TcpdfFpdi;
-
-use App\Services\SignatureSecurityService;
 
 class CandidateSigningService
 {
@@ -100,6 +99,12 @@ class CandidateSigningService
                 ->where('form_contract_id', $contractDef->id)
                 ->latest('generated_at')
                 ->first();
+
+            // If the Form/FormContract template was edited since generation and nobody
+            // has signed yet, regenerate so the candidate signs the up-to-date document.
+            if ($existingGenerated) {
+                $existingGenerated = $this->contractGenService->regenerateIfStale($lockedCandidate, $contractDef, $existingGenerated);
+            }
 
             $alreadyCandidateSigned = $existingGenerated && ($existingGenerated->signature_metadata['candidate_signed'] ?? false);
 
@@ -369,14 +374,16 @@ class CandidateSigningService
                                     continue;
                                 }
 
-                                // Center the image (assuming roughly 40mm width, 20mm height)
-                                $w = 40;
-                                $h = 20; // estimate
+                                // Honor the box size configured in the layout editor (percent of page), fallback to a sane default
+                                $wPercent = $overlay['placement']['width'] ?? null;
+                                $w = $wPercent ? ($wPercent / 100) * $size['width'] : 40;
+                                $binarySize = @getimagesizefromstring($imageBinary);
+                                $h = is_array($binarySize) && $binarySize[0] > 0 ? $w * $binarySize[1] / $binarySize[0] : $w / 2;
                                 $finalX = max(0, $x - ($w / 2));
                                 $finalY = max(0, $y - ($h / 2));
 
                                 $pdf->Image('@'.$imageBinary, $finalX, $finalY, $w, 0, $imageType);
-                                Log::info("EmbedSignatures: Base64 image embedded at X:$finalX Y:$finalY");
+                                Log::info("EmbedSignatures: Base64 image embedded at X:$finalX Y:$finalY W:$w");
                             } else {
                                 // Handle URL or path
                                 Log::info('EmbedSignatures: Handling URL/Path signature: '.substr($val, 0, 50));
@@ -422,13 +429,14 @@ class CandidateSigningService
                                         }
                                     }
 
-                                    $w = 40;
-                                    $h = 20;
+                                    $wPercent = $overlay['placement']['width'] ?? null;
+                                    $w = $wPercent ? ($wPercent / 100) * $size['width'] : 40;
+                                    $h = is_array($sizeInfo) && $sizeInfo[0] > 0 ? $w * $sizeInfo[1] / $sizeInfo[0] : $w / 2;
                                     $finalX = max(0, $x - ($w / 2));
                                     $finalY = max(0, $y - ($h / 2));
 
                                     $pdf->Image('@'.$imageContent, $finalX, $finalY, $w, 0, $imageType);
-                                    Log::info("EmbedSignatures: URL image embedded at X:$finalX Y:$finalY");
+                                    Log::info("EmbedSignatures: URL image embedded at X:$finalX Y:$finalY W:$w");
                                 } else {
                                     Log::warning('EmbedSignatures: Could not resolve signature image: '.substr($val, 0, 50));
                                 }
@@ -438,9 +446,11 @@ class CandidateSigningService
                         }
                     } else {
                         Log::info("EmbedSignatures: Embedding text: {$overlay['value']}");
-                        $pdf->SetFont('courier', 'B', 16);
-                        $pdf->SetXY($x - 20, $y - 5);
-                        $pdf->Cell(40, 10, $overlay['value'], 0, 0, 'C');
+                        // Text is centred on (x, y); honor the box width (percent of page) when the field has one
+                        $textW = isset($overlay['placement']['width']) ? ($overlay['placement']['width'] / 100) * $size['width'] : 40;
+                        $pdf->SetFont(isset($overlay['placement']['width']) ? 'helvetica' : 'courier', 'B', isset($overlay['placement']['width']) ? 11 : 16);
+                        $pdf->SetXY($x - ($textW / 2), $y - 5);
+                        $pdf->Cell($textW, 10, $overlay['value'], 0, 0, 'C', false, '', 1);
                     }
                 }
             }
@@ -471,6 +481,7 @@ class CandidateSigningService
                         'locked_by' => $candidate->signing_in_progress_by,
                     ]);
 
+                    $candidate->timestamps = false;
                     $candidate->update([
                         'signing_in_progress_by' => null,
                         'signing_started_at' => null,
@@ -487,7 +498,10 @@ class CandidateSigningService
             }
         }
 
-        // Acquire/Refresh lock
+        // Acquire/Refresh lock - pure workflow metadata, must NOT count as a
+        // "candidate data changed" event or every lock/ping would falsely mark
+        // the generated contract stale and trigger needless regeneration.
+        $candidate->timestamps = false;
         $candidate->update([
             'signing_in_progress_by' => $user->id,
             'signing_started_at' => $candidate->signing_started_at ?: now(),
@@ -503,6 +517,7 @@ class CandidateSigningService
     {
         // Only update if this user actually holds the lock
         if ($candidate->signing_in_progress_by == $user->id) {
+            $candidate->timestamps = false;
             $candidate->update([
                 'last_ping_at' => now(),
                 // Keep session ID alive or update if it was missing
@@ -529,6 +544,7 @@ class CandidateSigningService
             return;
         }
 
+        $candidate->timestamps = false;
         $candidate->update([
             'signing_in_progress_by' => null,
             'signing_started_at' => null,
