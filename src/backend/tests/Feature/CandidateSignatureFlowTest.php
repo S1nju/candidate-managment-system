@@ -20,7 +20,13 @@ class CandidateSignatureFlowTest extends TestCase
 
     public function test_candidate_signature_flow()
     {
-        Storage::fake('secure');
+        // The signing service resolves files with storage_path('app/secure/...'), so this test
+        // uses the real 'secure' disk and removes whatever it creates.
+        $secureFilesBefore = Storage::disk('secure')->allFiles();
+        $this->beforeApplicationDestroyed(function () use ($secureFilesBefore) {
+            $created = array_diff(Storage::disk('secure')->allFiles(), $secureFilesBefore);
+            Storage::disk('secure')->delete(array_values($created));
+        });
         Storage::fake('public');
         Mail::fake();
 
@@ -29,28 +35,28 @@ class CandidateSignatureFlowTest extends TestCase
         $role = Role::create(['name' => 'admin']);
         $admin->assignRole($role);
 
-        $form = Form::create(['name' => 'Test Form', 'status' => 'published']);
+        $form = Form::create(['title' => 'Test Form', 'status' => 'active', 'created_by' => $admin->id]);
         $contract = FormContract::create([
             'form_id' => $form->id,
             'name' => 'Test Contract',
-            'file_path' => 'templates/contract.pdf',
+            'template_path' => 'templates/contract.pdf',
             'placeholders' => [],
         ]);
 
-        // Create dummy PDF template
-        if (! Storage::disk('secure')->exists('templates/contract.pdf')) {
-            // Create a minimal valid PDF
-            $pdfContent = "%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Resources <<\n/Font <<\n/F1 4 0 R\n>>\n>>\n/Contents 5 0 R\n>>\nendobj\n4 0 obj\n<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>\nendobj\n5 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 24 Tf\n100 700 Td\n(Hello World) Tj\nET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f\n0000000010 00000 n\n0000000060 00000 n\n0000000157 00000 n\n0000000307 00000 n\n0000000392 00000 n\ntrailer\n<<\n/Size 6\n/Root 1 0 R\n>>\nstartxref\n486\n%%EOF\n";
-            Storage::disk('secure')->put('templates/contract.pdf', $pdfContent);
-        }
+        // Create a valid one-page PDF template
+        $pdf = new \setasign\Fpdi\TcpdfFpdi;
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->AddPage();
+        $pdf->Write(0, 'Hello World');
+        Storage::disk('secure')->put('templates/contract.pdf', $pdf->Output('', 'S'));
 
         $candidate = Candidate::create([
-            'first_name' => 'John',
-            'last_name' => 'Can',
+            'name' => 'Can',
             'email' => 'john@example.com',
             'form_id' => $form->id,
             'contract_status' => 'pending',
-            'data' => [],
+            'data' => ['prénom(s)' => 'John'],
         ]);
 
         // 2. Admin Sends Signature Request
