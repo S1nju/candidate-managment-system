@@ -74,6 +74,11 @@ export const translations = {
         auth: {
             logout: "Log out",
             login: "Log in",
+            title: "Sign In",
+            description: "Enter your email below to login to your account.",
+            email: "Email",
+            password: "Password",
+            submit: "Sign In",
         },
         breadcrumbs: {
             dashboard: "Dashboard",
@@ -259,6 +264,7 @@ export const translations = {
                 add: "Add Contract",
                 template: "Template",
                 edit_layout: "Edit Layout",
+                replace_file: "Replace file",
                 mapping_title: "Dynamic Placeholders Mapping",
                 mapping_desc: "Mapping placeholders from your template (e.g. {{candidate_name}}) to form or verified data.",
                 placeholder_label: "Placeholder in Document (without branches)",
@@ -888,6 +894,11 @@ export const translations = {
         auth: {
             logout: "Se déconnecter",
             login: "Se connecter",
+            title: "Connexion",
+            description: "Saisissez votre e-mail pour vous connecter à votre compte.",
+            email: "E-mail",
+            password: "Mot de passe",
+            submit: "Se connecter",
         },
         breadcrumbs: {
             dashboard: "Tableau de Bord",
@@ -1277,6 +1288,7 @@ export const translations = {
                 add: "Ajouter un contrat",
                 template: "Modèle",
                 edit_layout: "Modifier la mise en page",
+                replace_file: "Remplacer le fichier",
                 mapping_title: "Mappage des espaces réservés dynamiques",
                 mapping_desc: "Mappage des espaces réservés de votre modèle (ex: {{candidate_name}}) aux données du formulaire ou vérifiées.",
                 placeholder_label: "Espace réservé dans le document (sans accolades)",

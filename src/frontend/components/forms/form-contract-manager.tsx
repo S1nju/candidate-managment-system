@@ -139,7 +139,7 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
 
         const formData = new FormData()
         formData.append('template', file)
-        formData.append('name', file.name.split('.')[0])
+        if (!contractId) formData.append('name', file.name.split('.')[0])
 
         setUploading(true)
         try {
@@ -251,6 +251,8 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
                         onUpdateAnnexRules={(rules) => updateAnnexRules(contract.id!, rules)}
                         onUpdateStyle={(style) => updateContractStyle(contract.id!, style)}
                         onEditLayout={() => setEditingContract(contract)}
+                        onReplaceFile={(e) => handleFileUpload(e, contract.id!)}
+                        uploading={uploading}
                     />
                 ))}
             </div>
@@ -275,7 +277,7 @@ export function FormContractManager({ formId, fields }: FormContractManagerProps
     )
 }
 
-function ContractItem({ formId, contract, formFields, libraryDocs, onDelete, onUpdateMapping, onUpdateAnnexRules, onUpdateStyle, onEditLayout }: {
+function ContractItem({ formId, contract, formFields, libraryDocs, onDelete, onUpdateMapping, onUpdateAnnexRules, onUpdateStyle, onEditLayout, onReplaceFile, uploading }: {
     formId: string,
     contract: Contract,
     formFields: FormField[],
@@ -284,7 +286,9 @@ function ContractItem({ formId, contract, formFields, libraryDocs, onDelete, onU
     onUpdateMapping: (mapping: PlaceholderMapping[]) => void,
     onUpdateAnnexRules: (rules: AnnexRule[]) => void,
     onUpdateStyle: (style: { font_family: string | null, font_size: number | null }) => void,
-    onEditLayout: () => void
+    onEditLayout: () => void,
+    onReplaceFile: (e: React.ChangeEvent<HTMLInputElement>) => void,
+    uploading: boolean
 }) {
     const { t } = useLanguage()
     const [isEditing, setIsEditing] = useState(false)
@@ -371,6 +375,19 @@ function ContractItem({ formId, contract, formFields, libraryDocs, onDelete, onU
                             <Upload className="h-3 w-3 mr-1 rotate-180" />
                             {t("forms.contracts.template")}
                         </a>
+                    </Button>
+                    <input
+                        type="file"
+                        id={`replace-template-${contract.id}`}
+                        className="hidden"
+                        accept=".pdf,.docx"
+                        onChange={(e) => { onReplaceFile(e); e.target.value = "" }}
+                    />
+                    <Button variant="outline" size="sm" className="h-8" disabled={uploading} asChild>
+                        <label htmlFor={`replace-template-${contract.id}`} className="cursor-pointer">
+                            {uploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+                            {t("forms.contracts.replace_file")}
+                        </label>
                     </Button>
                     <Button variant="outline" size="sm" className="h-8" onClick={onEditLayout}>
                         {t("forms.contracts.edit_layout")}
