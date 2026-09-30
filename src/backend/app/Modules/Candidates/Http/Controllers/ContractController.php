@@ -4,6 +4,8 @@ namespace App\Modules\Candidates\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Audit\Services\AuditService;
+use App\Modules\Candidates\Http\Requests\RejectContractRequest;
+use App\Modules\Candidates\Http\Requests\SignContractRequest;
 use App\Modules\Candidates\Models\Candidate;
 use App\Modules\Candidates\Services\CandidateSigningService;
 use Illuminate\Http\JsonResponse;
@@ -123,6 +125,19 @@ class ContractController extends Controller
         return response()->json(['message' => 'Contract rejected successfully', 'candidate' => $candidate]);
     }
 
+    public function regenerate(Candidate $candidate): JsonResponse
+    {
+        if ($candidate->contract_status === 'rejected') {
+            abort(403, 'This contract has been rejected.');
+        }
+
+        $result = $this->generatorService->regenerateForCandidate($candidate);
+
+        return response()->json($result + [
+            'candidate' => $candidate->fresh(['generatedContracts.formContract']),
+        ]);
+    }
+
     public function download($id)
     {
         if (is_numeric($id)) {
@@ -207,7 +222,6 @@ class ContractController extends Controller
             ->header('Content-Type', 'application/pdf')
             ->header('Content-Disposition', 'inline; filename="contract_preview.pdf"');
     }
-
 
     public function sendSignatureRequest(Candidate $candidate): JsonResponse
     {

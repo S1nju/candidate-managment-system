@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react"
+import { useLanguage } from "@/context/language-context"
 import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
 
@@ -20,6 +21,7 @@ interface PDFViewerProps {
 }
 
 export function PDFViewer({ fileUrl, onPageChange, onNumPagesChange, children }: PDFViewerProps) {
+    const { t } = useLanguage()
     const [numPages, setNumPages] = useState<number>(0)
     const [pageNumber, setPageNumber] = useState<number>(1)
     const [scale, setScale] = useState<number>(1.0)
@@ -75,7 +77,7 @@ export function PDFViewer({ fileUrl, onPageChange, onNumPagesChange, children }:
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm">
-                        Page {pageNumber} of {numPages || "?"}
+                        {t("common.page_of").replace("{page}", String(pageNumber)).replace("{total}", String(numPages || "?"))}
                     </span>
                     <Button
                         variant="outline"
@@ -105,8 +107,8 @@ export function PDFViewer({ fileUrl, onPageChange, onNumPagesChange, children }:
                         file={fileConfig as any}
                         onLoadSuccess={onDocumentLoadSuccess}
                         onLoadError={onDocumentLoadError}
-                        loading={<div className="p-4 bg-white rounded shadow">Loading PDF...</div>}
-                        error={<div className="p-4 text-destructive bg-white rounded shadow">Failed to load PDF. Please check the file URL.</div>}
+                        loading={<div className="p-4 bg-white rounded shadow">{t("common.loading_pdf")}</div>}
+                        error={<div className="p-4 text-destructive bg-white rounded shadow">{t("common.pdf_load_failed")}</div>}
                     >
                         <div className="relative">
                             <Page

@@ -16,9 +16,23 @@ class AuditService
             'action' => $action,
             'auditable_type' => get_class($model),
             'auditable_id' => $model->getKey(),
-            'metadata' => $metadata,
+            'metadata' => $this->withSubjectName($model, $metadata ?? []),
             'ip_address' => Request::ip(),
             'user_agent' => Request::userAgent(),
         ]);
+    }
+
+    /**
+     * Snapshot the subject's name so the log stays readable once the record is deleted.
+     */
+    private function withSubjectName(Model $model, array $metadata): array
+    {
+        $name = $model->display_name ?? $model->name ?? $model->title ?? null;
+
+        if ($name && ! isset($metadata['subject_name'])) {
+            $metadata['subject_name'] = (string) $name;
+        }
+
+        return $metadata;
     }
 }

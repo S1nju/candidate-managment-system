@@ -7,6 +7,7 @@ use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\FormContract;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class FormContractController extends Controller
 {
@@ -16,6 +17,7 @@ class FormContractController extends Controller
     public function index(string $formId)
     {
         $form = Form::findOrFail($formId);
+
         return response()->json($form->contracts);
     }
 
@@ -31,6 +33,9 @@ class FormContractController extends Controller
             'description' => 'nullable|string',
             'template' => 'required|file|mimes:pdf,docx|max:5120',
             'placeholders' => 'nullable|array',
+            'annex_rules' => 'nullable|array',
+            'font_family' => ['nullable', 'string', Rule::in(FormContract::FONT_FAMILIES)],
+            'font_size' => 'nullable|integer|min:6|max:36',
             'order' => 'integer',
         ]);
 
@@ -41,6 +46,9 @@ class FormContractController extends Controller
             'description' => $validated['description'] ?? null,
             'template_path' => $path,
             'placeholders' => $validated['placeholders'] ?? [],
+            'annex_rules' => $validated['annex_rules'] ?? [],
+            'font_family' => $validated['font_family'] ?? null,
+            'font_size' => $validated['font_size'] ?? null,
             'order' => $validated['order'] ?? 0,
         ]);
 
@@ -53,12 +61,12 @@ class FormContractController extends Controller
     public function downloadTemplate(string $formId, string $id)
     {
         $contract = FormContract::where('form_id', $formId)->findOrFail($id);
-        
-        if (!Storage::disk('secure')->exists($contract->template_path)) {
+
+        if (! Storage::disk('secure')->exists($contract->template_path)) {
             abort(404, 'Template file not found.');
         }
 
-        return Storage::disk('secure')->download($contract->template_path, $contract->name . '.' . pathinfo($contract->template_path, PATHINFO_EXTENSION));
+        return Storage::disk('secure')->download($contract->template_path, $contract->name.'.'.pathinfo($contract->template_path, PATHINFO_EXTENSION));
     }
 
     /**
@@ -67,8 +75,8 @@ class FormContractController extends Controller
     public function downloadGenerated(string $id)
     {
         $generated = \App\Modules\Forms\Models\GeneratedContract::findOrFail($id);
-        
-        if (!Storage::disk('secure')->exists($generated->file_path)) {
+
+        if (! Storage::disk('secure')->exists($generated->file_path)) {
             abort(404, 'Generated contract file not found.');
         }
 
@@ -81,6 +89,7 @@ class FormContractController extends Controller
     public function show(string $formId, string $id)
     {
         $contract = FormContract::where('form_id', $formId)->findOrFail($id);
+
         return response()->json($contract);
     }
 
@@ -96,6 +105,9 @@ class FormContractController extends Controller
             'description' => 'nullable|string',
             'template' => 'nullable|file|mimes:pdf,docx|max:5120',
             'placeholders' => 'nullable|array',
+            'annex_rules' => 'nullable|array',
+            'font_family' => ['nullable', 'string', Rule::in(FormContract::FONT_FAMILIES)],
+            'font_size' => 'nullable|integer|min:6|max:36',
             'order' => 'integer',
         ]);
 
@@ -119,7 +131,7 @@ class FormContractController extends Controller
     public function destroy(string $formId, string $id)
     {
         $contract = FormContract::where('form_id', $formId)->findOrFail($id);
-        
+
         // Delete file
         if ($contract->template_path) {
             Storage::disk('secure')->delete($contract->template_path);

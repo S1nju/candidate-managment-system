@@ -38,13 +38,13 @@ function SortableSignatureCard({ sig, id, onDelete }: any) {
         </CardHeader>
         <CardContent>
           {sig.type === 'drawn' || sig.type === 'uploaded' ? (
-            <img src={sig.value} alt="Signature" className="max-h-24 dark:invert" />
+            <img src={sig.value} alt="Signature" className="max-h-24 bg-white rounded p-1" />
           ) : (
             <span className="text-2xl font-signature text-foreground">{sig.value}</span>
           )}
-          <div className="text-xs text-muted-foreground mt-2">{sig.created_at}</div>
+          <div className="text-xs text-muted-foreground mt-2">{format(new Date(sig.created_at), 'dd-MM-yyyy HH:mm')}</div>
           {sig.initials && <div className="text-xs text-muted-foreground">{t("signatures.labels.initials")}: {sig.initials}</div>}
-          {sig.date && <div className="text-xs text-muted-foreground">{t("signatures.labels.date")}: {sig.date}</div>}
+          {sig.date && <div className="text-xs text-muted-foreground">{t("signatures.labels.date")}: {format(new Date(sig.date), 'dd-MM-yyyy')}</div>}
         </CardContent>
       </Card>
     </div>

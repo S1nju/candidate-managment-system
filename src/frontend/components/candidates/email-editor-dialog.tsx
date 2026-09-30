@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Send } from "lucide-react"
+import { useLanguage } from "@/context/language-context"
 
 interface EmailEditorDialogProps {
     isOpen: boolean
@@ -27,11 +28,12 @@ export function EmailEditorDialog({
     isOpen,
     onClose,
     recipients,
-    initialSubject = "Regarding your application",
-    initialBody = "Hello,\n\nWe are reaching out to you regarding your application..."
+    initialSubject,
+    initialBody
 }: EmailEditorDialogProps) {
-    const [subject, setSubject] = useState(initialSubject)
-    const [body, setBody] = useState(initialBody)
+    const { t } = useLanguage()
+    const [subject, setSubject] = useState(initialSubject ?? t("candidates.email_editor.default_subject"))
+    const [body, setBody] = useState(initialBody ?? t("candidates.email_editor.default_body"))
 
     const handleSend = () => {
         const emails = recipients.join(",")
@@ -56,14 +58,14 @@ export function EmailEditorDialog({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[525px]">
                 <DialogHeader>
-                    <DialogTitle>Compose Email</DialogTitle>
+                    <DialogTitle>{t("candidates.email_editor.title")}</DialogTitle>
                     <DialogDescription>
-                        Customize your message before sending. This will open your default email client.
+                        {t("candidates.email_editor.description")}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="recipients">Recipients</Label>
+                        <Label htmlFor="recipients">{t("candidates.email_editor.recipients_label")}</Label>
                         <Input
                             id="recipients"
                             value={recipients.join(", ")}
@@ -72,31 +74,31 @@ export function EmailEditorDialog({
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="subject">Subject</Label>
+                        <Label htmlFor="subject">{t("candidates.email_editor.subject_label")}</Label>
                         <Input
                             id="subject"
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
-                            placeholder="Enter subject..."
+                            placeholder={t("candidates.email_editor.subject_placeholder")}
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="body">Message Body</Label>
+                        <Label htmlFor="body">{t("candidates.email_editor.body_label")}</Label>
                         <Textarea
                             id="body"
                             value={body}
                             onChange={(e) => setBody(e.target.value)}
-                            placeholder="Type your message here..."
+                            placeholder={t("candidates.email_editor.body_placeholder")}
                             rows={10}
                             className="resize-none"
                         />
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button variant="outline" onClick={onClose}>{t("candidates.email_editor.cancel")}</Button>
                     <Button onClick={handleSend} className="flex items-center gap-2">
                         <Send className="h-4 w-4" />
-                        Open Email Client
+                        {t("candidates.email_editor.send_button")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

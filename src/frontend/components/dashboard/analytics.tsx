@@ -34,7 +34,7 @@ ChartJS.register(
 )
 
 export default function DashboardAnalytics() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
 
   // Fetch analytics data using domain API layer
@@ -144,7 +144,7 @@ export default function DashboardAnalytics() {
             <p className="text-xs text-muted-foreground mt-1">
               {t("dashboard.stats.new_in").replace(
                 "{month}",
-                now.toLocaleString(t("common.language") === "English" ? "en-US" : "fr-FR", { month: "long" })
+                now.toLocaleString(language === "en" ? "en-US" : "fr-FR", { month: "long" })
               )}
             </p>
           </CardContent>

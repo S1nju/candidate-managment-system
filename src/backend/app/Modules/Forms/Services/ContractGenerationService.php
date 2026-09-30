@@ -6,6 +6,7 @@ use App\Modules\Candidates\Models\Candidate;
 use App\Modules\Forms\Models\Form;
 use App\Modules\Forms\Models\FormContract;
 use App\Modules\Forms\Models\GeneratedContract;
+use App\Modules\Forms\Models\LibraryDocument;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\TcpdfFpdi;
@@ -57,6 +58,66 @@ class ContractGenerationService
         ]);
     }
 
+    /**
+     * Force-regenerate every unsigned contract of the candidate from the current
+     * form/contract configuration. Contracts with any signature are left untouched.
+     * Superseded unsigned PDFs are removed so the history keeps a single entry.
+     *
+     * @return array{regenerated: int, skipped_signed: int}
+     */
+    public function regenerateForCandidate(Candidate $candidate): array
+    {
+        $regenerated = 0;
+        $skipped = 0;
+
+        $candidate->loadMissing('form.contracts');
+
+        foreach ($candidate->form?->contracts ?? [] as $contract) {
+            $existing = GeneratedContract::where('candidate_id', $candidate->id)
+                ->where('form_contract_id', $contract->id)
+                ->get();
+
+            if ($existing->contains(fn (GeneratedContract $gc) => $gc->hasAnySignature())) {
+                $skipped++;
+
+                continue;
+            }
+
+            $this->generateContract($candidate, $contract);
+            $regenerated++;
+
+            foreach ($existing as $old) {
+                if ($old->file_path) {
+                    Storage::disk('secure')->delete($old->file_path);
+                }
+                $old->delete();
+            }
+        }
+
+        return ['regenerated' => $regenerated, 'skipped_signed' => $skipped];
+    }
+
+    /**
+     * If the Form or FormContract template was edited since $existing was generated,
+     * and nobody has signed it yet, regenerate the PDF so the candidate sees the
+     * up-to-date document instead of a stale cached one.
+     */
+    public function regenerateIfStale(Candidate $candidate, FormContract $formContract, GeneratedContract $existing): GeneratedContract
+    {
+        if ($existing->hasAnySignature() || ! $existing->isStale()) {
+            return $existing;
+        }
+
+        Log::info("GenContract: Regenerating stale contract for candidate {$candidate->id}, form_contract {$formContract->id} (form/template updated since last generation).");
+
+        $this->generateContract($candidate, $formContract);
+
+        return GeneratedContract::where('candidate_id', $candidate->id)
+            ->where('form_contract_id', $formContract->id)
+            ->latest('generated_at')
+            ->first() ?? $existing;
+    }
+
     public function generateContent(Candidate $candidate, FormContract $formContract): string
     {
         try {
@@ -65,7 +126,7 @@ class ContractGenerationService
             if (! Storage::disk('secure')->exists($templatePath)) {
                 throw new \Exception("Template file not found at: {$templatePath}");
             }
-            
+
             $fullPath = Storage::disk('secure')->path($templatePath);
 
             $data = $this->resolvePlaceholders($candidate, $formContract->placeholders);
@@ -74,14 +135,19 @@ class ContractGenerationService
             $pdf->SetAutoPageBreak(false); // CRITICAL: Prevent auto page breaks when placing elements near bottom
             $pdf->setPrintHeader(false);
             $pdf->setPrintFooter(false);
-            
+
             $pageCount = $pdf->setSourceFile($fullPath);
 
+            $fontFamily = in_array($formContract->font_family, FormContract::FONT_FAMILIES, true)
+                ? $formContract->font_family
+                : FormContract::DEFAULT_FONT_FAMILY;
+            $fontSize = $formContract->font_size ?: FormContract::DEFAULT_FONT_SIZE;
+
             // ... remainder of generation loop ...
-            
-    // [SKIP TO resolvePlaceholders modification]
-    // I will do this in a separate chunk to be safe or use multi_replace if supported, but let's stick to single chunk per file if possible or just use ReplaceFileContent carefully.
-    // Actually, I can't jump lines in ReplaceFileContent. I will do the SetAutoPageBreak first.
+
+            // [SKIP TO resolvePlaceholders modification]
+            // I will do this in a separate chunk to be safe or use multi_replace if supported, but let's stick to single chunk per file if possible or just use ReplaceFileContent carefully.
+            // Actually, I can't jump lines in ReplaceFileContent. I will do the SetAutoPageBreak first.
 
             for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
                 $templateId = $pdf->importPage($pageNo);
@@ -136,13 +202,23 @@ class ContractGenerationService
                         }
                     } else {
                         if ($value || $value === '0') {
-                            $pdf->SetFont('helvetica', 'B', 12);
+                            // (x, y) from the layout editor = left edge / vertical middle of the text.
+                            $text = (string) $value;
+                            $lineHeight = 6;
+                            $pdf->SetFont($fontFamily, 'B', $fontSize);
                             $pdf->SetTextColor(0, 0, 0);
-                            $pdf->SetXY($x, $y);
-                            $pdf->Cell(0, 0, (string) $value, 0, 0, 'L');
+                            $pdf->setCellPaddings(0, 0, 0, 0);
+                            $pdf->SetXY($x, $y - ($lineHeight / 2));
+                            $pdf->Cell($pdf->GetStringWidth($text) + 1, $lineHeight, $text, 0, 0, 'L', false, '', 0, false, 'T', 'M');
                         }
                     }
                 }
+            }
+
+            // Append conditional annexes from the document library, based on the
+            // candidate's form data, after the main template's own pages.
+            foreach ($this->resolveAnnexDocuments($candidate, $formContract) as $annexDocument) {
+                $this->appendAnnexPages($pdf, $annexDocument);
             }
 
             return $pdf->Output('', 'S');
@@ -150,6 +226,98 @@ class ContractGenerationService
             Log::error('CRITICAL: Contract generation failed: '.$e->getMessage()."\n".$e->getTraceAsString());
             throw $e;
         }
+    }
+
+    /**
+     * Append every page of a library document to the end of the PDF being built,
+     * as plain pages (no overlay).
+     */
+    protected function appendAnnexPages(TcpdfFpdi $pdf, LibraryDocument $document): void
+    {
+        if (! Storage::disk('secure')->exists($document->file_path)) {
+            Log::error("GenContract: Annex document {$document->id} file missing at {$document->file_path}");
+
+            return;
+        }
+
+        try {
+            $annexPath = Storage::disk('secure')->path($document->file_path);
+            $pageCount = $pdf->setSourceFile($annexPath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height'], true);
+
+            }
+        } catch (\Exception $e) {
+            Log::error("GenContract: Failed to append annex document {$document->id}: ".$e->getMessage());
+        }
+    }
+
+    /**
+     * Determine which library documents should be merged onto this contract,
+     * based on the candidate's submitted form data and the contract's annex rules.
+     *
+     * Rule shape: { field_name, operator: 'equals'|'not_equals'|'contains'|'in', value, document_ids: [] }
+     *
+     * @return \Illuminate\Support\Collection<int, LibraryDocument>
+     */
+    public function resolveAnnexDocuments(Candidate $candidate, FormContract $formContract)
+    {
+        $rules = $formContract->annex_rules ?? [];
+        if (empty($rules)) {
+            return collect();
+        }
+
+        $documentIds = [];
+        foreach ($rules as $rule) {
+            $fieldName = $rule['field_name'] ?? null;
+            $operator = $rule['operator'] ?? 'equals';
+            $expected = $rule['value'] ?? null;
+            $ruleDocumentIds = $rule['document_ids'] ?? [];
+
+            if (! $fieldName || empty($ruleDocumentIds)) {
+                continue;
+            }
+
+            $actual = $candidate->data[$fieldName] ?? null;
+
+            if ($this->ruleMatches($operator, $actual, $expected)) {
+                array_push($documentIds, ...$ruleDocumentIds);
+            }
+        }
+
+        if (empty($documentIds)) {
+            return collect();
+        }
+
+        $documentIds = array_values(array_unique($documentIds));
+        $documents = LibraryDocument::whereIn('id', $documentIds)->get()->keyBy('id');
+
+        // Preserve the order documents were matched in.
+        return collect($documentIds)->map(fn ($id) => $documents->get($id))->filter()->values();
+    }
+
+    protected function ruleMatches(string $operator, mixed $actual, mixed $expected): bool
+    {
+        // A field like a multi-select checkbox group stores an array of selected
+        // values - match against each one individually rather than collapsing
+        // the array to an empty string, otherwise rules never match.
+        $actualValues = is_array($actual)
+            ? array_map(fn ($v) => trim((string) $v), $actual)
+            : [trim((string) $actual)];
+
+        $expectedStr = is_array($expected) ? '' : trim((string) $expected);
+        $expectedList = array_map('strtolower', array_map('trim', is_array($expected) ? $expected : explode(',', (string) $expected)));
+
+        return match ($operator) {
+            'not_equals' => ! collect($actualValues)->contains(fn ($v) => strcasecmp($v, $expectedStr) === 0),
+            'contains' => collect($actualValues)->contains(fn ($v) => $v !== '' && stripos($v, $expectedStr) !== false),
+            'in' => collect($actualValues)->contains(fn ($v) => in_array(strtolower($v), $expectedList, true)),
+            default => collect($actualValues)->contains(fn ($v) => strcasecmp($v, $expectedStr) === 0), // 'equals'
+        };
     }
 
     /**
@@ -165,6 +333,7 @@ class ContractGenerationService
                 if ($decoded !== false) {
                     $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_b64');
                     file_put_contents($tempFile, $decoded);
+
                     return ['path' => $tempFile, 'is_temp' => true];
                 }
             }
@@ -188,6 +357,7 @@ class ContractGenerationService
                 if ($response->successful()) {
                     $tempFile = tempnam(sys_get_temp_dir(), 'contract_img_http');
                     file_put_contents($tempFile, $response->body());
+
                     return ['path' => $tempFile, 'is_temp' => true];
                 }
             } catch (\Exception $e) {
@@ -213,7 +383,6 @@ class ContractGenerationService
         return ['path' => null, 'is_temp' => false];
     }
 
-
     /**
      * Get resolved data for all contracts associated with a candidate's form.
      */
@@ -234,11 +403,117 @@ class ContractGenerationService
                 'contract_id' => $contract->id,
                 'template_path' => $contract->template_path,
                 'data' => $this->resolvePlaceholders($candidate, $contract->placeholders),
-                'placeholders' => $contract->placeholders,
+                'placeholders' => array_merge(
+                    $contract->placeholders ?? [],
+                    $this->annexSignaturePlaceholders($candidate, $contract),
+                ),
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * Signature / initials boxes and text fields placed on the library documents appended to this
+     * contract, expressed as layout placeholders whose page numbers account for
+     * the template's own pages and any annex appended before them.
+     */
+    public function annexSignaturePlaceholders(Candidate $candidate, FormContract $formContract): array
+    {
+        $annexes = $this->resolveAnnexDocuments($candidate, $formContract);
+        if ($annexes->isEmpty()) {
+            return [];
+        }
+
+        $offset = $this->countPdfPages($formContract->template_path);
+        if ($offset === null) {
+            return [];
+        }
+
+        $placeholders = [];
+        foreach ($annexes as $annex) {
+            foreach ($annex->elements ?? [] as $element) {
+                $type = $element['type'] ?? null;
+                if (in_array($type, ['signature', 'initials', 'admin_signature', 'text'], true)) {
+                    // 'text' = free-text field the candidate fills in while signing (its text is the label)
+                    $isText = $type === 'text';
+                    $placeholders[] = [
+                        'placeholder' => "{$type}_annex_{$annex->id}_".($element['id'] ?? uniqid()),
+                        'source' => 'system',
+                        'field_name' => $isText ? 'text_input' : $type,
+                        'field_type' => $isText ? 'text' : 'image',
+                        'label' => $isText ? ($element['text'] ?? null) : null,
+                        'position' => [
+                            'x' => (float) $element['x'],
+                            'y' => (float) $element['y'],
+                            'width' => (float) ($element['width'] ?? ($isText ? 30 : 20)),
+                            'height' => (float) ($element['height'] ?? ($isText ? 4 : 10)),
+                            'page' => $offset + (int) $element['page'],
+                        ],
+                    ];
+                }
+            }
+
+            $annexPages = $this->countPdfPages($annex->file_path);
+            if ($annexPages === null) {
+                break; // Can't know where later annexes start - don't misplace their boxes.
+            }
+            $offset += $annexPages;
+        }
+
+        return $placeholders;
+    }
+
+    protected function countPdfPages(?string $securePath): ?int
+    {
+        if (! $securePath || ! Storage::disk('secure')->exists($securePath)) {
+            return null;
+        }
+
+        try {
+            return (new TcpdfFpdi)->setSourceFile(Storage::disk('secure')->path($securePath));
+        } catch (\Exception $e) {
+            Log::error("GenContract: Could not count pages of {$securePath}: ".$e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * Look up a submitted form field value (falls back to case-insensitive keys and
+     * to a direct candidate attribute such as name/email).
+     */
+    protected function resolveFormFieldValue(Candidate $candidate, string $fieldName, string $cleanKey, string $searchKey): mixed
+    {
+        $value = $candidate->data[$fieldName] ?? $candidate->data[$cleanKey] ?? $candidate->data[$searchKey] ?? '';
+
+        // If we still don't have it, maybe try case-insensitive?
+        if (empty($value) && ! empty($candidate->data)) {
+            foreach ($candidate->data as $k => $v) {
+                if (strtolower($k) === strtolower($fieldName) || strtolower($k) === strtolower($cleanKey)) {
+                    $value = $v;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: Check if it exists as a direct attribute on the candidate model (e.g. name, email)
+        if (empty($value)) {
+            $value = $candidate->{$fieldName} ?? $candidate->{$cleanKey} ?? $candidate->{$searchKey} ?? '';
+        }
+
+        if ($value instanceof \Carbon\Carbon || $value instanceof \DateTimeInterface) {
+            $value = $value->format('d-m-Y');
+        }
+
+        // If it's a file object from dynamic form, we want the path for images
+        if (is_array($value) && isset($value['path'])) {
+            $value = $value['path'];
+        } elseif (is_array($value) && isset($value['name']) && ! isset($value['path'])) {
+            $value = $value['name'];
+        }
+
+        return $value;
     }
 
     /**
@@ -268,32 +543,29 @@ class ContractGenerationService
 
             switch ($source) {
                 case 'form_field':
-                    $value = $candidate->data[$fieldName] ?? $candidate->data[$cleanKey] ?? $candidate->data[$searchKey] ?? '';
-
-                    // If we still don't have it, maybe try case-insensitive?
-                    if (empty($value) && ! empty($candidate->data)) {
-                        foreach ($candidate->data as $k => $v) {
-                            if (strtolower($k) === strtolower($fieldName) || strtolower($k) === strtolower($cleanKey)) {
-                                $value = $v;
-                                break;
-                            }
+                    $value = $this->resolveFormFieldValue($candidate, $fieldName, $cleanKey, $searchKey);
+                    break;
+                case 'concat':
+                    // Several form fields joined with a separator (e.g. first name + last name).
+                    $separator = (string) ($mapping['separator'] ?? ' ');
+                    $parts = [];
+                    foreach ((array) ($mapping['field_names'] ?? []) as $partName) {
+                        $part = $this->resolveFormFieldValue($candidate, (string) $partName, (string) $partName, (string) $partName);
+                        if (is_array($part)) {
+                            $part = implode(', ', array_map('strval', $part));
+                        }
+                        $part = trim((string) $part);
+                        if ($part !== '') {
+                            $parts[] = $part;
                         }
                     }
-
-                    // Fallback: Check if it exists as a direct attribute on the candidate model (e.g. name, email)
-                    if (empty($value)) {
-                        $value = $candidate->{$fieldName} ?? $candidate->{$cleanKey} ?? $candidate->{$searchKey} ?? '';
-                    }
-
-                    // If it's a file object from dynamic form, we want the path for images
-                    if (is_array($value) && isset($value['path'])) {
-                        $value = $value['path'];
-                    } elseif (is_array($value) && isset($value['name']) && ! isset($value['path'])) {
-                        $value = $value['name'];
-                    }
+                    $value = implode($separator, $parts);
                     break;
                 case 'candidate_data':
                     $value = $candidate->{$fieldName} ?? $candidate->{$searchKey} ?? '';
+                    if ($value instanceof \Carbon\Carbon || $value instanceof \DateTimeInterface) {
+                        $value = $value->format('d-m-Y');
+                    }
                     break;
                 case 'didit_data':
                     // Fetch from verified data if available
@@ -306,7 +578,7 @@ class ContractGenerationService
                     break;
                 case 'system':
                     if ($searchKey === 'date' || $cleanKey === 'date') {
-                        $value = date('Y-m-d');
+                        $value = date('d-m-Y');
                     } else {
                         $value = '';
                     }

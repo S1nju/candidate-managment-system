@@ -2,65 +2,83 @@
 
 use App\Models\User;
 use App\Modules\Candidates\Models\Candidate;
+use App\Modules\Forms\Models\Form;
+use App\Modules\Forms\Models\FormContract;
+use App\Modules\Forms\Models\GeneratedContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
-test('candidate can apply and sign contract', function () {
-    $this->withoutExceptionHandling();
-    // 1. Apply
-    $response = $this->postJson('/api/candidates', [
-        'name' => 'John Doe',
-        'email' => 'john@example.com',
-        'phone' => '1234567890',
-        'social_security_number' => '123456789012345',
-        'gender' => 'Homme',
-        'nationality' => 'Française',
-        'dob' => '1990-01-01',
-        'address' => '1 Rue de la Paix',
-        'emergency_phone' => '0987654321',
-        'recruitment_city' => 'Paris',
-        'animator_name' => 'Animator',
-        'product_justcost' => 'FREE STRATYGO',
-        'contract_type' => 'CDI',
-        'start_date' => '2023-01-01',
+test('candidate applies through the public form, signs, then the admin countersigns', function () {
+    Mail::fake();
+
+    // The signing services resolve files with storage_path('app/secure/...'), so this test uses
+    // the real 'secure' disk and removes whatever it creates.
+    $secureFilesBefore = Storage::disk('secure')->allFiles();
+    $this->beforeApplicationDestroyed(function () use ($secureFilesBefore) {
+        Storage::disk('secure')->delete(array_values(array_diff(Storage::disk('secure')->allFiles(), $secureFilesBefore)));
+    });
+
+    $admin = User::factory()->create();
+    $admin->assignRole(Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']));
+
+    $form = Form::create(['title' => 'Public form', 'status' => 'active', 'created_by' => $admin->id]);
+
+    $template = new \setasign\Fpdi\TcpdfFpdi;
+    $template->setPrintHeader(false);
+    $template->setPrintFooter(false);
+    $template->AddPage();
+    $template->Write(0, 'Contract');
+    Storage::disk('secure')->put('templates/candidate-flow.pdf', $template->Output('', 'S'));
+
+    $contract = FormContract::create([
+        'form_id' => $form->id,
+        'name' => 'Contract',
+        'template_path' => 'templates/candidate-flow.pdf',
+        'placeholders' => [],
     ]);
 
-    $response->assertStatus(201);
-    $candidateId = $response->json('id');
-    $user = User::factory()->create();
-    $token = $user->createToken('test-token')->plainTextToken; // Create token once
+    // 1. Candidate applies: the candidate is created and the contract generated automatically
+    $apply = $this->postJson("/api/public/forms/{$form->uuid}/submit", [
+        'fields' => ['name' => 'Doe', 'email' => 'john@example.com'],
+    ]);
 
-    // 2. Generate Contract
-    $genResponse = $this->withHeaders(['Authorization' => 'Bearer '.$token])
-        ->postJson("/api/candidates/{$candidateId}/generate-contract");
-    $genResponse->assertStatus(200);
-    $file = $genResponse->json('file');
-    expect($file)->toEndWith('.pdf');
+    $apply->assertCreated();
+    $candidate = Candidate::findOrFail($apply->json('candidate_id'));
+    expect($candidate->contract_status)->toBe('pending');
+    expect(GeneratedContract::where('candidate_id', $candidate->id)->count())->toBe(1);
 
-    // 3. Sign Contract (new endpoint)
-    // $user = User::factory()->create(); // Already created
+    // 2. Admin sends the signature request
+    $this->actingAs($admin)
+        ->postJson("/api/candidates/{$candidate->id}/send-signature-request")
+        ->assertOk();
 
-    // Sanctum::actingAs($user, ['*']);
-    // $token = $user->createToken('test-token')->plainTextToken;
+    $candidate->refresh();
+    expect($candidate->contract_status)->toBe('pending_candidate_signature');
 
-    $signResponse = $this->withHeaders(['Authorization' => 'Bearer '.$token])
-        ->postJson("/api/candidates/{$candidateId}/sign-contract", [
-            'signatures' => [
-                [
-                    'type' => 'drawn',
-                    'value' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    'placement' => ['x' => 50, 'y' => 50, 'page' => 1],
-                ],
-            ],
-            'ip_address' => 'localhost',
-        ]);
+    // 3. Candidate signs through the public tokenized link
+    $signature = [
+        'signatures' => [[
+            'type' => 'drawn',
+            'value' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            'placement' => ['x' => 50, 'y' => 50, 'page' => 1],
+        ]],
+        'form_contract_id' => $contract->id,
+        'ip_address' => '127.0.0.1',
+    ];
 
-    $signResponse->assertStatus(200);
+    $this->postJson("/api/public/candidate/{$candidate->signing_token}/sign", $signature)->assertOk();
 
-    // 4. Verify relation
-    $candidate = Candidate::find($candidateId);
-    expect($candidate->signature_id)->not->toBeNull();
-    // expect($candidate->contract_signed)->toBeTrue(); // If we added this field
+    $candidate->refresh();
+    expect($candidate->contract_status)->toBe('pending_admin_signature');
+
+    // 4. Admin countersigns: the candidate is fully signed
+    $this->actingAs($admin)
+        ->postJson("/api/candidates/{$candidate->id}/sign-contract", $signature)
+        ->assertOk();
+
+    expect($candidate->fresh()->contract_status)->toBe('signed');
 });

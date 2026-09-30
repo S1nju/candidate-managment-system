@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card"
 import "react-pdf/dist/Page/AnnotationLayer.css"
 import "react-pdf/dist/Page/TextLayer.css"
 import useSWR from "swr"
+import { useLanguage } from "@/context/language-context"
 import axios from "@/lib/axios"
 
 // Set up PDF.js worker
@@ -34,8 +35,10 @@ interface Position {
 
 interface PlaceholderMapping {
     placeholder: string
-    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature'
+    source: 'form_field' | 'candidate_data' | 'didit_data' | 'system' | 'static_signature' | 'concat'
     field_name: string
+    field_names?: string[]
+    separator?: string
     field_type?: 'text' | 'image' | 'date' | 'file' // Added type tracking
     value?: string // For static values (like signature URLs)
     position?: Position
@@ -50,6 +53,7 @@ interface ContractLayoutEditorProps {
 }
 
 export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSave, onClose }: ContractLayoutEditorProps) {
+    const { t } = useLanguage()
     const [numPages, setNumPages] = useState<number>(0)
     const [pageNumber, setPageNumber] = useState<number>(1)
     const [scale, setScale] = useState<number>(1.0)
@@ -182,6 +186,20 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                             <Plus className="h-3 w-3" />
                         </div>
                         <div
+                            className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-amber-200 dark:hover:border-amber-800 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 cursor-pointer"
+                            onClick={() => {
+                                const uniqueId = Date.now().toString(36);
+                                // Box (like an image) the candidate types into while signing; nothing is stamped at generation
+                                addInstance({ placeholder: `candidate_text_${uniqueId}`, source: 'system', field_name: 'text_input', field_type: 'image' })
+                            }}
+                        >
+                            <div className="flex items-center gap-2">
+                                <PenTool className="h-4 w-4 text-amber-500" />
+                                <span className="text-sm font-medium">{t("forms.contracts.candidate_text_field")}</span>
+                            </div>
+                            <Plus className="h-3 w-3" />
+                        </div>
+                        <div
                             className="p-3 rounded-lg border bg-card flex items-center justify-between group hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 cursor-pointer"
                             onClick={() => {
                                 const uniqueId = Date.now().toString(36);
@@ -256,7 +274,7 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                                         <FileText className={`h-4 w-4 ${isPlaced ? 'text-blue-500' : 'text-slate-400'}`} />
                                         <div className="flex flex-col overflow-hidden">
                                             <span className="text-sm truncate font-medium" title={m.placeholder}>{m.placeholder}</span>
-                                            <span className="text-[10px] text-muted-foreground truncate">{m.source === 'form_field' ? `Field: ${m.field_name}` : m.source}</span>
+                                            <span className="text-[10px] text-muted-foreground truncate">{m.source === 'form_field' ? `Field: ${m.field_name}` : m.source === 'concat' ? `Combined: ${(m.field_names || []).join(' + ')}` : m.source}</span>
                                         </div>
                                     </div>
                                     <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-blue-100 hover:text-blue-600" onClick={() => addInstance(m)}>
@@ -320,7 +338,8 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                                                     top: `${m.position!.y}%`,
                                                     width: m.computedType === 'image' ? `${m.position!.width || 20}%` : 'auto',
                                                     height: m.computedType === 'image' ? `${m.position!.height || 10}%` : 'auto',
-                                                    transform: 'translate(-50%, -50%)'
+                                                    // Text: (x,y) = left edge / vertical middle, same anchor as the PDF generator. Images keep the centered box.
+                                                    transform: m.computedType === 'image' ? 'translate(-50%, -50%)' : 'translate(0, -50%)'
                                                 }}
                                                 onMouseDown={(e) => {
                                                     const startX = e.clientX;
@@ -360,7 +379,7 @@ export function ContractLayoutEditor({ fileUrl, mappings, formFields = [], onSav
                                             >
                                                 {m.computedType === 'image' ? (
                                                     <div className="w-full h-full bg-blue-100/50 dark:bg-blue-900/30 border-2 border-blue-500 border-dashed backdrop-blur-sm opacity-80 flex items-center justify-center relative">
-                                                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 truncate px-1">Img: {m.placeholder}</span>
+                                                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 truncate px-1">{m.field_name === 'text_input' ? t("forms.contracts.candidate_text_field") : `Img: ${m.placeholder}`}</span>
                                                         <div
                                                             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
                                                             onClick={(e) => {

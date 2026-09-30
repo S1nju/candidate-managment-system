@@ -27,7 +27,7 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
 
     const handleSaveDrawn = () => {
         if (canvasRef.current?.isEmpty()) {
-            alert("Please draw your signature first")
+            alert(t("signatures.draw_first_alert"))
             return
         }
         // Composite onto white background so TCPDF can embed it correctly
@@ -50,7 +50,7 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
 
     const handleSaveTyped = (text: string) => {
         if (!text.trim()) {
-            alert("Please enter your name or initials")
+            alert(t("signatures.enter_name_alert"))
             return
         }
         onSignatureCreate("typed", text)
@@ -71,11 +71,13 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
 
                     <TabsContent value="draw" className="space-y-4">
                         <div
-                            className="border rounded-lg bg-white flex items-center justify-center dark:bg-slate-200"
+                            className="border rounded-lg bg-white flex items-center justify-center"
                             style={{ width, height }}
                         >
                             <SignatureCanvas
                                 ref={canvasRef}
+                                penColor="black"
+                                backgroundColor="rgba(255,255,255,1)"
                                 canvasProps={{
                                     width,
                                     height,
@@ -101,13 +103,13 @@ export function SignaturePad({ onSignatureCreate, width = 300, height = 100 }: S
                                 id="typed-name"
                                 value={typedName}
                                 onChange={(e) => setTypedName(e.target.value)}
-                                placeholder="John Doe"
+                                placeholder={t("signatures.name_placeholder")}
                                 className="text-2xl font-signature bg-background"
                                 style={{ fontFamily: "cursive" }}
                             />
                         </div>
                         <Button onClick={() => handleSaveTyped(typedName)} className="w-full">
-                            Save Signature
+                            {t("common.save")}
                         </Button>
                     </TabsContent>
 

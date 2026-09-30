@@ -4,8 +4,11 @@ namespace App\Modules\Candidates\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Mail\CandidateSignatureRequest;
+use App\Modules\Audit\Services\AuditService;
 use App\Modules\Candidates\Models\Candidate;
 use App\Modules\Forms\Models\Form;
+use App\Modules\Forms\Models\GeneratedContract;
+use App\Modules\Forms\Services\ContractGenerationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -13,6 +16,11 @@ use Illuminate\Support\Str;
 
 class CandidateController extends Controller
 {
+    public function __construct(
+        protected ContractGenerationService $contractGenService,
+        protected AuditService $auditService
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Candidate::query();
@@ -21,7 +29,7 @@ class CandidateController extends Controller
         // Security: Non-admins only see candidates matching their roles
         if (! $user->hasRole('admin')) {
             $roleIds = $user->roles()->pluck('id');
-            
+
             $query->whereHas('form', function ($q) use ($roleIds) {
                 $q->whereIn('role_id', $roleIds);
             });
@@ -55,7 +63,7 @@ class CandidateController extends Controller
         }
 
         $perPage = (int) $request->query('per_page', 15);
-        $candidates = $query->with(['form', 'assignedTo'])->orderByDesc('created_at')->paginate($perPage);
+        $candidates = $query->with(['form', 'form.fields:id,form_id,name,label', 'assignedTo'])->orderByDesc('created_at')->paginate($perPage);
 
         return response()->json([
             'data' => $candidates->items(),
@@ -93,7 +101,8 @@ class CandidateController extends Controller
     public function show(Request $request, Candidate $candidate): JsonResponse
     {
         $this->ensureUserHasAccess($request->user(), $candidate);
-        return response()->json($candidate->load(['signature', 'form.contracts', 'assignedTo', 'generatedContracts']));
+
+        return response()->json($candidate->load(['signature', 'form.contracts', 'form.fields', 'assignedTo', 'generatedContracts']));
     }
 
     public function createEmailContractInvite(Request $request): JsonResponse
@@ -181,10 +190,45 @@ class CandidateController extends Controller
                 'data' => 'nullable|array',
             ]);
 
+            // La page "Edit Data" du candidat n'écrit que dans `data` (JSON).
+            // Les colonnes miroir (position, name, email, ...) sont ce que lit
+            // la liste des candidats — les garder en phase avec `data`.
+            if (isset($data['data']) && is_array($data['data'])) {
+                $mirrorColumns = [
+                    'name', 'email', 'phone', 'position', 'gender', 'nationality',
+                    'address', 'social_security_number', 'emergency_phone',
+                    'recruitment_city', 'animator_name', 'product_justcost',
+                    'contract_type',
+                ];
+
+                foreach ($mirrorColumns as $col) {
+                    if (array_key_exists($col, $data['data']) && ! array_key_exists($col, $data)) {
+                        $data[$col] = $data['data'][$col];
+                    }
+                }
+            }
+
             $candidate->update($data);
             \Illuminate\Support\Facades\Log::info('Candidate updated: '.$candidate->id);
 
-            return response()->json($candidate);
+            // Regenerate any already-generated but not-yet-signed contracts so
+            // the document history reflects this data change immediately,
+            // instead of waiting for the candidate to open the signing page.
+            $candidate->load('form.contracts');
+            if ($candidate->form) {
+                foreach ($candidate->form->contracts as $contractDef) {
+                    $existingGenerated = GeneratedContract::where('candidate_id', $candidate->id)
+                        ->where('form_contract_id', $contractDef->id)
+                        ->latest('generated_at')
+                        ->first();
+
+                    if ($existingGenerated) {
+                        $this->contractGenService->regenerateIfStale($candidate, $contractDef, $existingGenerated);
+                    }
+                }
+            }
+
+            return response()->json($candidate->fresh(['generatedContracts']));
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Illuminate\Support\Facades\Log::error('Candidate update validation failed: '.json_encode($e->errors()));
             throw $e;
@@ -195,11 +239,28 @@ class CandidateController extends Controller
         }
     }
 
+    public function destroy(Request $request, Candidate $candidate): JsonResponse
+    {
+        if (! $request->user()->hasRole('admin')) {
+            abort(403, 'Only admins can delete candidates.');
+        }
+
+        $this->auditService->log('candidate_deleted', $candidate, [
+            'name' => $candidate->name,
+            'email' => $candidate->email,
+            'position' => $candidate->position,
+        ]);
+
+        $candidate->delete();
+
+        return response()->json(['message' => 'Candidate deleted successfully.']);
+    }
+
     public function assign(Request $request, Candidate $candidate): JsonResponse
     {
         // Assignment is likely admin/manager only, but check access generally first
         $this->ensureUserHasAccess($request->user(), $candidate);
-        
+
         $validated = $request->validate([
             'assigned_to' => 'nullable|exists:users,id',
         ]);
@@ -222,14 +283,14 @@ class CandidateController extends Controller
         // Filter out candidates the user shouldn't see
         $candidates = Candidate::whereIn('id', $validated['candidate_ids'])->get();
         // Since this is a bulk action, maybe just filter the collection?
-        // Or re-query with scope? 
+        // Or re-query with scope?
         // Re-implementing the scope check manually for safety:
         $user = $request->user();
-        if (!$user->hasRole('admin')) {
-             $roleIds = $user->roles()->pluck('id');
-             $candidates = $candidates->filter(function($c) use ($roleIds) {
-                 return $c->form && $roleIds->contains($c->form->role_id);
-             });
+        if (! $user->hasRole('admin')) {
+            $roleIds = $user->roles()->pluck('id');
+            $candidates = $candidates->filter(function ($c) use ($roleIds) {
+                return $c->form && $roleIds->contains($c->form->role_id);
+            });
         }
 
         $emails = $candidates->pluck('email')->unique()->implode(',');
@@ -250,7 +311,7 @@ class CandidateController extends Controller
         // It's a bit loose. Ideally, download should be by Candidate ID + File Type, not raw path.
         // For now, leaving as-is but noting it's a potential weak point if paths are guessable.
         // The user request was specific about "go to other candidate by specifieng the link".
-        
+
         $path = $request->query('path');
 
         if (! $path) {
@@ -275,16 +336,16 @@ class CandidateController extends Controller
             return;
         }
 
-        // If candidate form has no role_id, maybe it's open? Or closed? 
+        // If candidate form has no role_id, maybe it's open? Or closed?
         // Assuming closed if not null. If form is deleted/null, access might be issue.
-        if (!$candidate->form || !$candidate->form->role_id) {
+        if (! $candidate->form || ! $candidate->form->role_id) {
             // Default deny if no role context exists for workers? Or default allow?
             // Given "secure the candidates", default deny is safer for orphans.
             abort(403, 'Unauthorized access to this candidate.');
         }
 
-        if (!$user->roles()->where('id', $candidate->form->role_id)->exists()) {
-             abort(403, 'Unauthorized access to this candidate.');
+        if (! $user->roles()->where('id', $candidate->form->role_id)->exists()) {
+            abort(403, 'Unauthorized access to this candidate.');
         }
     }
 }

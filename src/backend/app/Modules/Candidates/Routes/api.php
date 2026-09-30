@@ -14,11 +14,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/candidates/email-contracts', [CandidateController::class, 'createEmailContractInvite']);
     Route::get('/candidates/{candidate}', [CandidateController::class, 'show'])->whereNumber('candidate');
     Route::put('/candidates/{candidate}', [CandidateController::class, 'update']);
+    Route::delete('/candidates/{candidate}', [CandidateController::class, 'destroy']);
     Route::post('/candidates/{candidate}/assign', [CandidateController::class, 'assign']);
     Route::post('/candidates/mailto', [CandidateController::class, 'generateMailtoLink']);
     Route::get('/candidates/files', [CandidateController::class, 'downloadFile']);
 
     Route::post('/candidates/{candidate}/generate-contract', [ContractController::class, 'generate']);
+    Route::post('/candidates/{candidate}/regenerate-contracts', [ContractController::class, 'regenerate']);
     Route::get('/candidates/{candidate}/preview-contract', [ContractController::class, 'preview']);
     Route::get('/candidates/{candidate}/signing-status', [ContractLockController::class, 'checkStatus']);
     Route::post('/candidates/{candidate}/acquire-lock', [ContractLockController::class, 'acquire']);

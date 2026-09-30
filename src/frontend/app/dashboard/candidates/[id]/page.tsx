@@ -1,6 +1,7 @@
 "use client"
 
 import React, { use, useEffect, useState } from "react"
+import { getCandidateDisplayName } from "@/lib/candidate-name"
 import useSWR from "swr"
 import axios from "@/lib/axios"
 import { Button } from "@/components/ui/button"
@@ -10,8 +11,8 @@ import {
   FileText, Briefcase, UserCheck, Activity,
   AlertCircle, CheckCircle2, FileCheck, PenToolIcon,
   Edit, Save, X, Download, Eye, ExternalLink, ShieldCheck,
-  ChevronRight,
-  Trash2
+  ChevronRight, ArrowLeft,
+  Trash2, RefreshCw
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,9 @@ import { useLanguage } from "@/context/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { EmailEditorDialog } from "@/components/candidates/email-editor-dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +38,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   const [isEditing, setIsEditing] = useState(false)
   const [dynamicForm, setDynamicForm] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
 
   const { data: candidate, error, isLoading, mutate } = useSWR(`/api/candidates/${id}`)
 
@@ -48,20 +53,43 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     }
   }, [candidate])
 
+  const handleRegenerate = async () => {
+    setIsRegenerating(true)
+    try {
+      const res = await axios.post(`/api/candidates/${id}/regenerate-contracts`)
+      await mutate()
+      const { regenerated, skipped_signed } = res.data
+      toast({
+        title: t("candidates.detail.regenerate_success"),
+        description: t("candidates.detail.regenerate_result")
+          .replace("{count}", String(regenerated))
+          .replace("{skipped}", String(skipped_signed)),
+      })
+    } catch (e: any) {
+      toast({
+        title: t("candidates.detail.regenerate_failed"),
+        description: e.response?.data?.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
   const handleUpdate = async () => {
     setIsSaving(true)
     try {
       await axios.put(`/api/candidates/${id}`, {
         data: dynamicForm
       })
-      toast({ title: "Success", description: "Candidate data updated successfully" })
+      toast({ title: t("candidates.detail.toast_success") || "Succès", description: t("candidates.detail.update_success") || "Données du candidat mises à jour avec succès" })
       setIsEditing(false)
       mutate()
     } catch (err: any) {
       console.error("Update failed", err)
       toast({
-        title: "Error",
-        description: err.response?.data?.message || "Failed to update candidate",
+        title: t("candidates.detail.toast_error") || "Erreur",
+        description: err.response?.data?.message || t("candidates.detail.update_failed") || "Échec de la mise à jour du candidat",
         variant: "destructive"
       })
     } finally {
@@ -89,6 +117,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
   const isSigned = !!(candidate.signature_id || candidate.contract_status?.toLowerCase() === 'signed');
 
+  // Once signed, the final contract is reached through "Voir le contrat": no history card
+  const documentHistory: any[] = isSigned ? [] : (candidate.generated_contracts ?? []);
+
   // Separate data into text fields and file/image fields
   const textFields: [string, any][] = []
   const mediaFields: [string, any][] = []
@@ -96,7 +127,27 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   // Ensure candidate.data exists
   const rawData = candidate.data || {}
 
-  Object.entries(dynamicForm).forEach(([key, value]) => {
+  // Map form field definitions by name so edit mode can render the same
+  // control type (select/radio/checkbox_group/textarea/...) as the original
+  // application form, instead of a generic text input.
+  const fieldDefsByName: Record<string, any> = {}
+  ;(candidate.form?.fields || []).forEach((f: any) => {
+    fieldDefsByName[f.name] = f
+  })
+
+  // Follow the form's own layout: by page, then by field order. Keys that
+  // aren't form fields (legacy data) go last in their original order.
+  const fieldRank: Record<string, number> = {}
+  ;[...(candidate.form?.fields || [])]
+    .sort((a: any, b: any) => ((a.page || 1) - (b.page || 1)) || ((a.order ?? 0) - (b.order ?? 0)))
+    .forEach((f: any, i: number) => { fieldRank[f.name] = i })
+  const rankOf = (key: string) => fieldRank[key] ?? Number.MAX_SAFE_INTEGER
+  const orderedEntries = Object.entries(dynamicForm)
+    .map((entry, i) => ({ entry, i }))
+    .sort((a, b) => (rankOf(a.entry[0]) - rankOf(b.entry[0])) || (a.i - b.i))
+    .map(({ entry }) => entry)
+
+  orderedEntries.forEach(([key, value]) => {
     // Skip internal/meta keys if any
     const skipKeys = ['verified_data', 'rejection_reason', 'rejected_at', 'rejected_by'];
     if (skipKeys.includes(key)) return;
@@ -110,23 +161,60 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
   });
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="flex flex-col h-full bg-background">
       {/* Simple Header */}
-      <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-20 ">
+      <div className="-mx-4 md:-mx-6 -mt-4 md:-mt-6 px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-16 z-[5] bg-background border-b">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{candidate.name}</h1>
+            <Link href="/dashboard/candidates">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{getCandidateDisplayName(candidate)}</h1>
+            {candidate.form && (
+              <Badge
+                variant="outline"
+                style={{
+                  borderColor: candidate.form.color || "#3b82f6",
+                  color: candidate.form.color || "#3b82f6",
+                  backgroundColor: `${candidate.form.color || "#3b82f6"}1A`,
+                }}
+              >
+                {candidate.form.title}
+              </Badge>
+            )}
             <Badge
               variant={isSigned ? "outline" : candidate.contract_status === 'rejected' ? "destructive" : "secondary"}
-              className={isSigned ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}
+              className={isSigned ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900" : ""}
             >
               {isSigned ? <><ShieldCheck className="w-3 h-3 mr-1" /> {t("candidates.detail.contract_signed")}</> :
                 candidate.contract_status === 'rejected' ? t("candidates.detail.contract_rejected") :
-                  candidate.contract_status === 'pending_candidate_signature' ? "Waiting for Candidate" :
-                    candidate.contract_status === 'pending_admin_signature' ? "Ready for Admin Sign" :
+                  candidate.contract_status === 'pending_candidate_signature' ? (t("candidates.detail.waiting_candidate") || "En attente du candidat") :
+                    candidate.contract_status === 'pending_admin_signature' ? (t("candidates.detail.ready_admin_sign") || "Prêt pour signature admin") :
                       t("candidates.detail.pending_signature")}
             </Badge>
           </div>
+          {!isSigned && candidate.contract_status === 'pending_candidate_signature' && candidate.signing_token && (() => {
+            const signingUrl = `${window.location.origin}/candidate/sign/${candidate.signing_token}`
+            return (
+              <div className="flex flex-wrap items-center gap-2 pl-11 text-xs text-muted-foreground">
+                <span>{t("candidates.detail.candidate_link")} :</span>
+                <a href={signingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">{signingUrl}</a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(signingUrl)
+                    toast({ title: t("candidates.detail.link_copied") })
+                  }}
+                >
+                  {t("candidates.detail.copy_link")}
+                </Button>
+              </div>
+            )
+          })()}
         </div>
 
         <div className="flex items-center gap-2">
@@ -136,20 +224,20 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           {(!isSigned && (candidate.contract_status === 'pending' || candidate.contract_status === 'pending_candidate_signature')) && (
             <Button
               variant={candidate.contract_status === 'pending' ? "default" : "outline"}
-              className={candidate.contract_status === 'pending' ? "bg-blue-600" : ""}
+              className="text-xs h-9"
               onClick={async () => {
                 try {
-                  toast({ title: "Sending...", description: "Sending signature request..." });
+                  toast({ title: t("candidates.detail.sending") || "Envoi...", description: t("candidates.detail.sending_desc") || "Envoi de la demande de signature..." });
                   await axios.post(`/api/candidates/${candidate.id}/send-signature-request`);
-                  toast({ title: "Success", description: "Signature request sent!" });
+                  toast({ title: t("candidates.detail.toast_success") || "Succès", description: t("candidates.detail.signature_sent") || "Demande de signature envoyée !" });
                   mutate();
                 } catch (e: any) {
-                  toast({ title: "Error", description: e.response?.data?.message || "Failed to send request", variant: "destructive" });
+                  toast({ title: t("candidates.detail.toast_error") || "Erreur", description: e.response?.data?.message || (t("candidates.detail.send_failed") || "Échec de l'envoi de la demande"), variant: "destructive" });
                 }
               }}
             >
               <Mail className="w-3.5 h-3.5 mr-2" />
-              {candidate.contract_status === 'pending' ? "Send for Signature" : "Resend Request"}
+              {candidate.contract_status === 'pending' ? (t("candidates.detail.send_signature") || "Envoyer pour signature") : (t("candidates.detail.resend_request") || "Renvoyer la demande")}
             </Button>
           )}
 
@@ -158,7 +246,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
               <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all active:scale-95 text-xs h-9">
                 <PenToolIcon className="w-3.5 h-3.5 mr-2" />
-                Sign Contract
+                {t("candidates.detail.sign_contract")}
               </Button>
             </Link>
           )}
@@ -166,18 +254,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           {/* 3. VIEW CONTRACT (Only show after candidate signs or if fully signed) */}
           {(isSigned || candidate.contract_status === 'pending_admin_signature') && (
             <Link href={`/dashboard/candidates/${candidate.id}/sign`}>
-              <Button variant="outline" className="text-xs h-9 border-slate-200">
+              <Button variant="outline" className="text-xs h-9">
                 <Eye className="w-3.5 h-3.5 mr-2" />
-                {isSigned ? t("candidates.detail.view_contract") : "View Contract"}
+                {t("candidates.detail.view_contract")}
               </Button>
             </Link>
           )}
 
           {/* Email Button - General */}
 
-          <Button variant="outline" className="text-xs h-9 border-slate-200" onClick={() => setIsEmailOpen(true)}>
+          <Button variant="outline" className="text-xs h-9" onClick={() => setIsEmailOpen(true)}>
             <Mail className="w-3.5 h-3.5 mr-2" />
-            Email
+            {t("candidates.detail.email_btn") || "E-mail"}
           </Button>
 
           <Separator orientation="vertical" className="h-6 mx-1" />
@@ -185,15 +273,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
           {!isEditing ? (
             <Button variant="secondary" className="text-xs h-9" onClick={() => setIsEditing(true)}>
               <Edit className="w-3.5 h-3.5 mr-2" />
-              Edit Data
+              {t("candidates.detail.edit_data") || "Modifier les données"}
             </Button>
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="ghost" className="text-xs h-9" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                Cancel
+                {t("common.cancel") || "Annuler"}
               </Button>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-xs h-9" onClick={handleUpdate} disabled={isSaving}>
-                {isSaving ? "Saving..." : <><Save className="w-3.5 h-3.5 mr-2" /> Save Changes</>}
+                {isSaving ? (t("candidates.detail.saving") || "Enregistrement...") : <><Save className="w-3.5 h-3.5 mr-2" /> {t("candidates.detail.save_changes") || "Enregistrer"}</>}
               </Button>
             </div>
           )}
@@ -211,39 +299,38 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
           {/* LEFT COLUMN: TEXT DATA */}
           <div className="lg:col-span-2 space-y-6">
-            <Card className="border-none shadow-sm ring-1 ring-slate-100">
+            <Card className="border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <UserIcon className="w-5 h-5 text-blue-500" />
-                  Candidate Profile Details
+                  {t("candidates.detail.profile_title") || "Détails du profil du candidat"}
                 </CardTitle>
                 <CardDescription>
-                  All dynamic data submitted through the application form.
+                  {t("candidates.detail.profile_subtitle") || "Toutes les données dynamiques soumises via le formulaire de candidature."}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="grid grid-cols-1 gap-y-6">
                   {textFields.length > 0 ? (
-                    textFields.map(([key, value]) => (
-                      <div key={key} className="space-y-1.5">
-                        <Label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                          {key.replace(/_/g, ' ')}
-                        </Label>
-                        {isEditing ? (
-                          <Input
-                            value={String(value || '')}
-                            onChange={(e) => handleFieldChange(key, e.target.value)}
-                            className="h-9 focus:ring-1 focus:ring-blue-500 bg-background"
-                          />
-                        ) : (
-                          <div className="h-9 flex items-center px-3 bg-slate-50/50 dark:bg-slate-900/50 rounded-md border border-transparent text-sm font-semibold text-foreground">
-                            {String(value || '-')}
-                          </div>
-                        )}
-                      </div>
-                    ))
+                    textFields.map(([key, value]) => {
+                      const fieldDef = fieldDefsByName[key]
+                      return (
+                        <div key={key} className="space-y-1.5">
+                          <Label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                            {fieldDef?.label || key.replace(/_/g, ' ')}
+                          </Label>
+                          {isEditing ? (
+                            renderEditField(key, value, fieldDef, handleFieldChange)
+                          ) : (
+                            <div className="min-h-9 flex items-center px-3 bg-slate-50/50 dark:bg-slate-900/50 rounded-md border border-transparent text-sm font-semibold text-foreground">
+                              {Array.isArray(value) ? (value.length ? value.join(', ') : '-') : String(value || '-')}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
                   ) : (
-                    <div className="col-span-2 py-12 text-center text-muted-foreground">
+                    <div className="py-12 text-center text-muted-foreground">
                       <Activity className="w-12 h-12 mx-auto mb-3 opacity-20" />
                       <p>{t("candidates.detail.no_dynamic_fields")}</p>
                     </div>
@@ -253,19 +340,32 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </Card>
 
             {/* Contracts History or similar could go here */}
-            {candidate.generated_contracts?.length > 0 && (
+            {documentHistory.length > 0 && (
               <Card className="border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <CardTitle className="text-base">{t("candidates.detail.document_history")}</CardTitle>
+                  {candidate.contract_status?.toLowerCase() !== 'rejected' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={handleRegenerate}
+                      disabled={isRegenerating}
+                      title={t("candidates.detail.regenerate_hint")}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 mr-2 ${isRegenerating ? "animate-spin" : ""}`} />
+                      {t("candidates.detail.regenerate")}
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {candidate.generated_contracts.map((gc: any) => (
+                  {documentHistory.map((gc: any) => (
                     <div key={gc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card group hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
                       <div className="flex items-center gap-3">
                         <FileText className="w-8 h-8 text-blue-100 dark:text-blue-900 fill-blue-50 dark:fill-blue-900/20" />
                         <div>
                           <p className="text-sm font-medium text-foreground">{gc.form_contract?.name || "Contract"}</p>
-                          <p className="text-[10px] text-muted-foreground">{format(new Date(gc.generated_at), 'PPP p')}</p>
+                          <p className="text-[10px] text-muted-foreground">{format(new Date(gc.generated_at), 'dd-MM-yyyy HH:mm')}</p>
                         </div>
                       </div>
                       <Button variant="ghost" size="sm" asChild>
@@ -311,11 +411,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                     <div className="space-y-6">
                       {kycData.id_verifications?.[0] && (
                         <div className="grid grid-cols-2 gap-x-4 gap-y-6">
-                          <DetailItem label="Verified Full Name" value={kycData.id_verifications[0].full_name} />
-                          <DetailItem label="Date of Birth" value={kycData.id_verifications[0].date_of_birth} />
-                          <DetailItem label="Nationality" value={kycData.id_verifications[0].issuing_state_name} />
-                          <DetailItem label="Document ID" value={`${kycData.id_verifications[0].document_type} (${kycData.id_verifications[0].document_number})`} />
-                          <DetailItem label="Verified Address" value={kycData.id_verifications[0].formatted_address} colSpan={2} />
+                          <DetailItem label={t("candidates.detail.verified_full_name") || "Nom complet vérifié"} value={kycData.id_verifications[0].full_name} />
+                          <DetailItem label={t("candidates.detail.labels.dob") || "Date de naissance"} value={kycData.id_verifications[0].date_of_birth} />
+                          <DetailItem label={t("candidates.detail.labels.nationality") || "Nationalité"} value={kycData.id_verifications[0].issuing_state_name} />
+                          <DetailItem label={t("candidates.detail.document_id") || "Numéro de document"} value={`${kycData.id_verifications[0].document_type} (${kycData.id_verifications[0].document_number})`} />
+                          <DetailItem label={t("candidates.detail.verified_address") || "Adresse vérifiée"} value={kycData.id_verifications[0].formatted_address} colSpan={2} />
                         </div>
                       )}
 
@@ -327,7 +427,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             <span className="text-xs font-bold uppercase">{t("candidates.detail.aml_alert")}</span>
                           </div>
                           <p className="text-xs text-red-600 dark:text-red-500">
-                            Detected {kycData.aml_screenings[0].total_hits} hit(s) in PEP/watchlist databases.
+                            {kycData.aml_screenings[0].total_hits} correspondance(s) détectée(s) dans les bases PEP/liste de surveillance.
                           </p>
                         </div>
                       )}
@@ -344,7 +444,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                               <p className="text-sm font-bold text-foreground">{kycData.phone_verifications[0].full_number}</p>
                             </div>
                           </div>
-                          <Badge variant="outline" className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-none text-[10px]">VERIFIED</Badge>
+                          <Badge variant="outline" className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-none text-[10px]">VÉRIFIÉ</Badge>
                         </div>
                       )}
                     </div>
@@ -387,30 +487,30 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                         )}
                         <div>
                           <p className="text-[10px] font-bold text-slate-500 uppercase">{t("candidates.detail.liveness_check")}</p>
-                          <p className="text-[9px] text-slate-400">Status: {kycData.liveness_checks?.[0]?.status || t("candidates.detail.status.pending")}</p>
+                          <p className="text-[9px] text-slate-400">{t("candidates.detail.status_label") || "Statut"}: {kycData.liveness_checks?.[0]?.status || t("candidates.detail.status.pending")}</p>
                         </div>
                         <div className="ml-auto">
-                          <Badge className="bg-emerald-500 h-5 text-[9px] text-white border-none">PASSED</Badge>
+                          <Badge className="bg-emerald-500 h-5 text-[9px] text-white border-none">RÉUSSI</Badge>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* IP & Metadata Footer */}
-                  <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-6 opacity-90">
+                  <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 md:grid-cols-4 gap-6 opacity-90">
                     {kycData.ip_analyses?.[0] && (
                       <>
-                        <DetailItem label="Verification IP" value={kycData.ip_analyses[0].ip_address} />
-                        <DetailItem label="City / Region" value={`${kycData.ip_analyses[0].ip_city}, ${kycData.ip_analyses[0].ip_state}`} />
-                        <DetailItem label="Device Info" value={`${kycData.ip_analyses[0].device_brand} ${kycData.ip_analyses[0].device_model} (${kycData.ip_analyses[0].os_family})`} />
-                        <DetailItem label="Browser" value={kycData.ip_analyses[0].browser_family} />
+                        <DetailItem label={t("candidates.detail.verification_ip") || "IP de vérification"} value={kycData.ip_analyses[0].ip_address} />
+                        <DetailItem label={t("candidates.detail.city_region") || "Ville / Région"} value={`${kycData.ip_analyses[0].ip_city}, ${kycData.ip_analyses[0].ip_state}`} />
+                        <DetailItem label={t("candidates.detail.device_info") || "Appareil"} value={`${kycData.ip_analyses[0].device_brand} ${kycData.ip_analyses[0].device_model} (${kycData.ip_analyses[0].os_family})`} />
+                        <DetailItem label={t("candidates.detail.browser") || "Navigateur"} value={kycData.ip_analyses[0].browser_family} />
                       </>
                     )}
                   </div>
 
                   <div className="mt-6 flex items-center justify-between text-[9px] text-muted-foreground font-mono bg-slate-50 dark:bg-slate-900/50 p-2 rounded border dark:border-slate-800">
-                    <span>DIDIT SESSION: {kycData.session_id}</span>
-                    <span>TIMESTAMP: {format(new Date(kycData.created_at), 'yyyy-MM-dd HH:mm:ss')}</span>
+                    <span>{t("candidates.detail.didit_session") || "SESSION DIDIT"}: {kycData.session_id}</span>
+                    <span>{t("candidates.detail.timestamp") || "HORODATAGE"}: {format(new Date(kycData.created_at), 'dd-MM-yyyy HH:mm:ss')}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -471,13 +571,13 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
               </CardContent>
             </Card>
 
-            <Card className="bg-blue-600 dark:bg-blue-700 text-white border-none shadow-lg">
+            <Card className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-blue-100 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5" /> {t("candidates.detail.quick_help")}
+                <CardTitle className="text-blue-800 dark:text-blue-300 flex items-center gap-2 text-base">
+                  <AlertCircle className="w-4 h-4" /> {t("candidates.detail.quick_help")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-blue-100/90 leading-relaxed">
+              <CardContent className="text-sm text-blue-900/80 dark:text-blue-200/80 leading-relaxed">
                 {t("candidates.detail.quick_help_text")}
               </CardContent>
             </Card>
@@ -487,6 +587,77 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
       </div>
     </div>
   )
+}
+
+// Renders the same control type used on the public application form
+// (select/radio/checkbox_group/textarea/date/number/text) so editing
+// candidate data stays consistent with how it was originally captured.
+function renderEditField(key: string, value: any, fieldDef: any, onChange: (key: string, value: any) => void) {
+  const type = fieldDef?.type || 'text'
+  const options: string[] = fieldDef?.validation_rules?.options || []
+
+  if (type === 'textarea') {
+    return <Textarea value={String(value || '')} onChange={(e) => onChange(key, e.target.value)} className="min-h-[80px] bg-background" />
+  }
+
+  if (type === 'select') {
+    return (
+      <Select value={String(value || '')} onValueChange={(v) => onChange(key, v)}>
+        <SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  if (type === 'radio') {
+    return (
+      <RadioGroup value={String(value || '')} onValueChange={(v) => onChange(key, v)} className="flex flex-col gap-2 pt-1">
+        {options.map((opt) => (
+          <div key={opt} className="flex items-center space-x-2">
+            <RadioGroupItem value={opt} id={`${key}-${opt}`} />
+            <Label htmlFor={`${key}-${opt}`} className="font-normal text-sm">{opt}</Label>
+          </div>
+        ))}
+      </RadioGroup>
+    )
+  }
+
+  if (type === 'checkbox_group') {
+    const selected: string[] = Array.isArray(value) ? value : []
+    return (
+      <div className="flex flex-col gap-2 pt-1">
+        {options.map((opt) => (
+          <div key={opt} className="flex items-center space-x-2">
+            <Checkbox
+              id={`${key}-${opt}`}
+              checked={selected.includes(opt)}
+              onCheckedChange={(checked: boolean) => {
+                const next = checked ? [...selected, opt] : selected.filter((v) => v !== opt)
+                onChange(key, next)
+              }}
+            />
+            <Label htmlFor={`${key}-${opt}`} className="font-normal text-sm">{opt}</Label>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (type === 'date') {
+    return <Input type="date" value={String(value || '')} onChange={(e) => onChange(key, e.target.value)} className="h-9 bg-background" />
+  }
+
+  if (type === 'number') {
+    return <Input type="number" value={String(value ?? '')} onChange={(e) => onChange(key, e.target.value)} className="h-9 bg-background" />
+  }
+
+  if (type === 'email') {
+    return <Input type="email" value={String(value || '')} onChange={(e) => onChange(key, e.target.value)} className="h-9 bg-background" />
+  }
+
+  return <Input value={String(value || '')} onChange={(e) => onChange(key, e.target.value)} className="h-9 bg-background" />
 }
 
 function DetailItem({ label, value, colSpan = 1 }: { label: string, value: any, colSpan?: number }) {

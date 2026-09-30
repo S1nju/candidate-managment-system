@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useLanguage } from "@/context/language-context"
 
 interface UserProfile {
   name: string
@@ -23,6 +24,7 @@ interface UserProfile {
 export default function ProfilePage() {
   const { user, mutate } = useAuth({ middleware: "auth" })
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [profile, setProfile] = useState<UserProfile>({
@@ -55,13 +57,13 @@ export default function ProfilePage() {
       await mutate()
 
       toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
+        title: t("profile.toast_title"),
+        description: t("profile.toast_description"),
       })
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to update profile. Please try again.",
+        title: t("profile.error_title"),
+        description: error.response?.data?.message || t("profile.error_generic"),
         variant: "destructive",
       })
     } finally {
@@ -101,14 +103,14 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">Manage your account information and preferences</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("profile.title")}</h1>
+        <p className="text-muted-foreground">{t("profile.subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Personal Information</CardTitle>
-          <CardDescription>Update your profile details</CardDescription>
+          <CardTitle>{t("profile.card_title")}</CardTitle>
+          <CardDescription>{t("profile.card_description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -117,47 +119,47 @@ export default function ProfilePage() {
                 <AvatarFallback className="text-lg bg-primary/10 text-primary">{initials}</AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-sm font-medium">Profile Photo</p>
-                <p className="text-xs text-muted-foreground">Your avatar is generated from your name.</p>
+                <p className="text-sm font-medium">{t("profile.photo_label")}</p>
+                <p className="text-xs text-muted-foreground">{t("profile.photo_desc")}</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t("profile.name_label")}</Label>
               <Input
                 id="name"
                 value={profile.name}
                 onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                placeholder="Enter your name"
+                placeholder={t("profile.name_placeholder")}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("profile.email_label")}</Label>
               <Input
                 id="email"
                 type="email"
                 value={profile.email}
                 onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                placeholder="Enter your email"
+                placeholder={t("profile.email_placeholder")}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
+              <Label htmlFor="bio">{t("profile.bio_label")}</Label>
               <Input
                 id="bio"
                 value={profile.bio}
                 onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                placeholder="Tell us about yourself"
+                placeholder={t("profile.bio_placeholder")}
               />
             </div>
 
             <div className="flex gap-4">
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? t("profile.saving") : t("profile.save_changes")}
               </Button>
             </div>
           </form>
@@ -166,4 +168,3 @@ export default function ProfilePage() {
     </div>
   )
 }
-

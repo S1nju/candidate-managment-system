@@ -92,7 +92,7 @@ export function NotificationDropdown() {
                                             <MailIcon className="h-3 w-3 text-primary" />
                                         )}
                                         <span className="font-bold text-xs truncate">
-                                            {notification.data.title || "Update"}
+                                            {notification.data.title || t("notifications.default_title")}
                                         </span>
                                     </div>
                                     <span className="text-[10px] text-muted-foreground">

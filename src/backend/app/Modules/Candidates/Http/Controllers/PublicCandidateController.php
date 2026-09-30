@@ -59,7 +59,7 @@ class PublicCandidateController extends Controller
         $active = collect($contracts)->firstWhere('candidate_signed', false) ?? $contracts[0];
 
         return response()->json([
-            'candidate_name' => $candidate->name,
+            'candidate_name' => $candidate->display_name,
             'contract_status' => $candidate->contract_status,
             'contracts' => $contracts,
             // Convenience
@@ -89,6 +89,10 @@ class PublicCandidateController extends Controller
             ->where('form_contract_id', $contract->id)
             ->latest('generated_at')
             ->first();
+
+        if ($generated) {
+            $generated = $this->generatorService->regenerateIfStale($candidate, $contract, $generated);
+        }
 
         // If candidate already signed, show the signed version (so they can see their signature)
         // But if Admin hasn't signed, it might be in 'file_path' or 'signed_path' depending on logic.

@@ -1,103 +1,46 @@
 <?php
 
-namespace Tests\Feature;
-
 use App\Models\User;
-use App\Modules\Documents\Models\Document;
-use App\Modules\Signing\Models\DocumentSignature;
-use App\Modules\Audit\Models\AuditLog;
-use App\Modules\Notifications\Notifications\DocumentAssignedNotification;
-use App\Modules\Notifications\Notifications\DocumentSignedNotification;
+use App\Modules\Signing\Models\Signature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Storage;
-use Spatie\Permission\Models\Role;
-use Tests\TestCase;
 
-class SigningFlowTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class);
 
-    public function test_full_signing_flow()
-    {
-        try {
-            Storage::fake('secure');
-            Storage::fake('public');
-            Notification::fake();
-            $this->withoutExceptionHandling();
+test('a user manages their own saved signatures (stamps)', function () {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    Signature::create(['user_id' => $other->id, 'type' => 'typed', 'value' => 'Other', 'date' => now()->toDateString()]);
 
-            // 1. Setup Data
-            $adminRole = Role::create(['name' => 'admin']);
-            $workerRole = Role::create(['name' => 'worker']);
+    $created = $this->actingAs($user)->postJson('/api/signatures', [
+        'type' => 'drawn',
+        'value' => 'data:image/png;base64,AAAA',
+        'initials' => 'JD',
+    ]);
+    $created->assertCreated();
 
-            $admin = User::factory()->create();
-            $admin->assignRole($adminRole);
+    // Only the user's own signatures are listed
+    $this->actingAs($user)->getJson('/api/signatures')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.initials', 'JD');
 
-            $worker = User::factory()->create();
-            $worker->assignRole($workerRole);
+    // Invalid type is rejected
+    $this->actingAs($user)->postJson('/api/signatures', ['type' => 'nope', 'value' => 'x'])
+        ->assertUnprocessable();
 
-            // 2. Admin Uploads Document
-            $response = $this->actingAs($admin)
-                ->postJson('/api/documents', [
-                    'title' => 'Contract',
-                    'description' => 'Please sign this',
-                    'file' => UploadedFile::fake()->create('contract.pdf', 100),
-                    'assigned_to' => $worker->id,
-                ]);
+    // A user cannot delete someone else's signature, but can delete their own
+    $foreign = Signature::where('user_id', $other->id)->first();
+    $this->actingAs($user)->deleteJson("/api/signatures/{$foreign->id}")->assertNotFound();
+    $this->actingAs($user)->deleteJson('/api/signatures/'.$created->json('id'))->assertOk();
+    $this->assertDatabaseMissing('signatures', ['id' => $created->json('id')]);
+});
 
-            $response->assertStatus(201);
-            $documentId = $response->json('id');
-            
-            $this->assertDatabaseHas('documents', [
-                'id' => $documentId,
-                'title' => 'Contract',
-                'status' => 'sent', // Assigned immediately
-                'assigned_to' => $worker->id,
-            ]);
+test('saved signatures require authentication', function () {
+    $this->getJson('/api/signatures')->assertUnauthorized();
+});
 
-            Storage::disk('secure')->assertExists($response->json('file_path'));
-
-            // Verify Audit Log (Uploaded & Assigned)
-            $this->assertDatabaseHas('audit_logs', ['action' => 'document_uploaded', 'auditable_id' => $documentId]);
-            $this->assertDatabaseHas('audit_logs', ['action' => 'document_assigned', 'auditable_id' => $documentId]);
-
-            // Verify Notification sent to Worker
-            Notification::assertSentTo($worker, DocumentAssignedNotification::class);
-
-            // 3. Worker Views Document
-            $response = $this->actingAs($worker)->getJson('/api/documents');
-            $response->assertOk();
-            $response->assertJsonFragment(['title' => 'Contract']);
-
-            // 4. Worker Signs Document
-            $response = $this->actingAs($worker)
-                ->postJson("/api/documents/{$documentId}/sign", [
-                    'type' => 'text',
-                    'value' => 'John Doe',
-                ]);
-
-            $response->assertOk();
-            
-            $this->assertDatabaseHas('documents', [
-                'id' => $documentId,
-                'status' => 'signed',
-            ]);
-
-            $this->assertDatabaseHas('document_signatures', [
-                'document_id' => $documentId,
-                'user_id' => $worker->id,
-                'signature_value' => 'John Doe',
-            ]);
-
-            // Verify Audit Log (Signed)
-            $this->assertDatabaseHas('audit_logs', ['action' => 'document_signed', 'auditable_id' => $documentId]);
-
-            // Verify Notification sent to Admin (Owner)
-            Notification::assertSentTo($admin, DocumentSignedNotification::class);
-        } catch (\Throwable $e) {
-            fwrite(STDERR, "EXCEPTION: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            throw $e;
-        }
-    }
-}
+test('public verification returns 404 for an unknown signature hash', function () {
+    $this->getJson('/api/public/signature/'.str_repeat('a', 64).'/verify')
+        ->assertNotFound()
+        ->assertJson(['is_valid' => false, 'status' => 'NOT_FOUND']);
+});
