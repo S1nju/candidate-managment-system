@@ -146,10 +146,10 @@ export default function UsersPage() {
                     </TableHeader>
                     <TableBody>
                         {users?.map((user: any) => (
-                            <TableRow key={user.id} className={user.deleted_at ? "bg-slate-50 opacity-60" : ""}>
+                            <TableRow key={user.id} className={user.deleted_at ? "bg-muted/50 opacity-60" : ""}>
                                 <TableCell>
                                     <div className="flex items-center gap-3">
-                                        <div className="h-9 w-9 bg-slate-100 rounded-full flex items-center justify-center">
+                                        <div className="h-9 w-9 bg-muted rounded-full flex items-center justify-center">
                                             <UserIcon className="h-5 w-5 text-slate-500" />
                                         </div>
                                         <div>
